@@ -29,9 +29,9 @@ flowchart LR
 
   subgraph adapters ["open-rmf-adapters-quiksync"]
     direction TB
-    fleet["fleet_adapter_quiksync<br/>v1 ships"]
-    door["door_adapter_quiksync<br/>v2 (stub in v1)"]
-    lift["lift_adapter_quiksync<br/>v2 (stub in v1)"]
+    fleet["fleet_adapter_quiksync<br/>v0.1+"]
+    door["door_adapter_quiksync<br/>v0.2+"]
+    lift["lift_adapter_quiksync<br/>v0.2+"]
     fleet -.shared core.-> client["quiksync_client"]
     door -.-> client
     lift -.-> client
@@ -95,9 +95,9 @@ stream is identical.
 | Package | Status | Purpose |
 |---|---|---|
 | [`quiksync_client`](packages/quiksync_client) | shared core | Auth0 M2M `client_credentials` flow with token caching + preemptive refresh, `httpx`-based REST client with retries and jittered backoff, `websockets`-based state subscriber with 401 circuit-breaker. Used by all three adapter packages. |
-| [`fleet_adapter_quiksync`](packages/fleet_adapter_quiksync) | v1 ships | Open-RMF `EasyFullControl` adapter — registers QuikSync-managed fleets with the customer's Open-RMF deployment; serves `RobotCallbacks(navigate, stop, action_executor)` against the QuikSync HTTP surface and pushes per-robot state from the WSS stream into `EasyRobotUpdateHandle`. |
-| [`door_adapter_quiksync`](packages/door_adapter_quiksync) | v2 — stub in v1 | `rmf_door_msgs` adapter for QuikSync-managed doors. Stub binary ships in v1 so docker-compose deployments don't need to special-case "fleet only." |
-| [`lift_adapter_quiksync`](packages/lift_adapter_quiksync) | v2 — stub in v1 | `rmf_lift_msgs` adapter for QuikSync-managed lifts. Same stub-ships-in-v1 rationale. |
+| [`fleet_adapter_quiksync`](packages/fleet_adapter_quiksync) | v0.1+ | Open-RMF `EasyFullControl` adapter — registers QuikSync-managed fleets with the customer's Open-RMF deployment; serves `RobotCallbacks(navigate, stop, action_executor)` against the QuikSync HTTP surface and pushes per-robot state from the WSS stream into `EasyRobotUpdateHandle`. |
+| [`door_adapter_quiksync`](packages/door_adapter_quiksync) | v0.2+ | `rmf_door_msgs` adapter for QuikSync-managed doors. One rclpy node owns N doors; subscribes to `door_requests`, publishes `door_states`. Per-door WSS state pump + REST request dispatch via `quiksync_client`. |
+| [`lift_adapter_quiksync`](packages/lift_adapter_quiksync) | v0.2+ | `rmf_lift_msgs` adapter for QuikSync-managed lifts. One rclpy node owns N lifts with a shared adapter-side `LiftSessionManager` (defense-in-depth over the server's session lock). Subscribes to `lift_requests`, publishes `lift_states`. |
 
 The internal ament package names follow the Open-RMF community convention `<role>_adapter_<vendor>` so they list cleanly in [`open-rmf/awesome_adapters`](https://github.com/open-rmf/awesome_adapters). The repository name is plural because it holds three adapter packages.
 
@@ -241,9 +241,11 @@ ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
 
 Optional flags: `server_uri:=ws://localhost:7878` to publish task/fleet state to a `rmf-web` API server; `use_sim_time:=true` for simulation testing.
 
-A combined launch that includes future v2 door + lift roles is provided at
-[`launch/quiksync_all.launch.xml`](launch/quiksync_all.launch.xml). In v1 it
-launches the fleet adapter only; v2 packages slot in when they ship.
+A combined launch that brings up all three adapter roles is at
+[`launch/quiksync_all.launch.xml`](launch/quiksync_all.launch.xml). Each role
+takes its own config YAML (see `packages/<role>_adapter_quiksync/config/`
+for examples) and ROS topic remaps default to the rmf community conventions
+(`door_states`/`door_requests`, `lift_states`/`lift_requests`).
 
 ### Docker
 
