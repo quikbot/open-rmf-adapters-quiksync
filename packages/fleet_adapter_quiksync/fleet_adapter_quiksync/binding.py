@@ -209,6 +209,122 @@ class BindingError(Exception):
     unsupported rmf_adapter version)."""
 
 
+# ----- YAML-driven path (default, recommended) -----
+
+
+def bind_from_yaml(
+    rmf_adapter: Any,
+    config_path: str,
+    nav_graph_path: str,
+    http: QuikSyncHttpClient,
+    handles: dict[str, "RobotHandle"],
+    fleet_name: str,
+    node_name: str = "fleet_adapter_quiksync",
+    server_uri: Optional[str] = None,
+) -> tuple[Any, Any]:
+    """Bootstrap the Adapter from a YAML config + nav graph file.
+
+    Matches the canonical fleet_adapter_template entry point:
+    `FleetConfiguration.from_config_files(config_path, nav_graph_path)`.
+    The YAML's `rmf_fleet:` block drives the fleet shape (limits,
+    profile, battery system, task capabilities, robot list); the nav
+    graph file is the standard Open-RMF nav graph YAML.
+
+    Robots are enumerated from `fleet_config.known_robots` (populated
+    by from_config_files from the YAML's `rmf_fleet.robots` map). For
+    each, we register an initial-placeholder RobotState, build the
+    callbacks via `quiksync_client`, call `add_robot`, and bind the
+    returned EasyRobotUpdateHandle to a `RobotHandle` (lazy-created
+    if absent from the caller's `handles` dict). The placeholder pose
+    is overwritten by the first WSS frame that arrives (~1 s).
+    """
+    if not config_path:
+        raise BindingError("YAML mode requires a config file path (--config)")
+    if not nav_graph_path:
+        raise BindingError(
+            "YAML mode requires a nav graph file path (--nav-graph). "
+            "Either provide one, or enable dynamic mode (quiksync.dynamic_mode: true)."
+        )
+
+    log.info("loading FleetConfiguration from %s + %s", config_path, nav_graph_path)
+    fleet_config = rmf_adapter.easy_full_control.FleetConfiguration.from_config_files(
+        config_path, nav_graph_path,
+    )
+    if fleet_config is None:
+        raise BindingError(
+            f"FleetConfiguration.from_config_files returned None for "
+            f"config={config_path!r} nav_graph={nav_graph_path!r}",
+        )
+    if server_uri:
+        fleet_config.server_uri = server_uri
+
+    log.info("creating Adapter(node_name=%r)", node_name)
+    adapter = rmf_adapter.Adapter.make(node_name)
+    if adapter is None:
+        raise BindingError(
+            f"rmf_adapter.Adapter.make({node_name!r}) returned None — is rclpy initialised?"
+        )
+
+    log.info("adding EasyFullControl fleet from YAML config")
+    fleet_handle = adapter.add_easy_fleet(fleet_config)
+
+    known_robots = list(getattr(fleet_config, "known_robots", []) or [])
+    log.info("known robots from YAML: %s", known_robots)
+
+    bound_count = 0
+    for robot_name in known_robots:
+        # Lazy-create a RobotHandle if the caller didn't pre-populate one
+        # (env-driven invocations don't know the robot list ahead of time).
+        handle = handles.get(robot_name)
+        if handle is None:
+            from .robot_handle import RobotHandle as _RobotHandle  # local import avoids cycle
+            handle = _RobotHandle(robot_name)
+            handles[robot_name] = handle
+
+        robot_config = fleet_config.get_known_robot_configuration(robot_name)
+        initial_state = _initial_robot_state_from_yaml(rmf_adapter, robot_name, robot_config)
+        callbacks = _build_robot_callbacks(rmf_adapter, http, fleet_name, robot_name, handle)
+
+        log.info("adding robot=%r to fleet (YAML mode)", robot_name)
+        update_handle = fleet_handle.add_robot(
+            robot_name,
+            initial_state,
+            robot_config,
+            callbacks,
+        )
+        handle.bind(update_handle)
+        bound_count += 1
+
+    log.info("EasyFullControl bound (YAML mode): robots=%d", bound_count)
+    return adapter, fleet_handle
+
+
+def _initial_robot_state_from_yaml(
+    rmf_adapter: Any,
+    robot_name: str,
+    robot_config: Any,
+) -> Any:
+    """Placeholder initial RobotState for YAML-mode add_robot.
+
+    Reads charger location from the per-robot config if exposed
+    (`robot_config.charger_waypoint` is the common shape); otherwise
+    falls back to an empty-map, zero-position placeholder. Either way,
+    the WSS state pump overwrites this on the first frame (~1 s).
+    """
+    level_name = ""
+    for attr in ("initial_map", "charger_map", "map"):
+        candidate = getattr(robot_config, attr, None)
+        if isinstance(candidate, str) and candidate:
+            level_name = candidate
+            break
+
+    return rmf_adapter.RobotState(
+        level_name,
+        rmf_adapter.type.Vector3d(0.0, 0.0, 0.0),
+        1.0,  # battery SOC placeholder; replaced on first WSS frame
+    )
+
+
 def bind_easy_full_control(
     rmf_adapter: Any,
     fleet_entry: dict[str, Any],

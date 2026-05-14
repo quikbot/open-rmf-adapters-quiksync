@@ -20,7 +20,7 @@ What we verify here:
 from __future__ import annotations
 
 import types
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,6 +28,7 @@ import pytest
 from fleet_adapter_quiksync.binding import (
     BindingError,
     bind_easy_full_control,
+    bind_from_yaml,
     build_battery_system,
     build_consider_request_dict,
     build_fleet_configuration,
@@ -92,6 +93,24 @@ class _FakeGraph:
 class _FakeFleetConfiguration:
     def __init__(self, **kwargs: Any) -> None:
         self.__dict__.update(kwargs)
+        # Default empty so the YAML-mode helper below sees stable shape
+        self.known_robots = kwargs.get("known_robots", [])
+        self._robot_configs = kwargs.get("_robot_configs", {})
+        self.server_uri: Optional[str] = None
+
+    def get_known_robot_configuration(self, name: str) -> Any:
+        return self._robot_configs.get(name)
+
+    @classmethod
+    def from_config_files(cls, config_path: str, nav_graph_path: str) -> "_FakeFleetConfiguration":
+        """Stand-in for `rmf_adapter.easy_full_control.FleetConfiguration.from_config_files`.
+
+        Test paths set `cls._next_config` before calling bind_from_yaml to
+        steer what gets returned. Reset between tests via the helper.
+        """
+        return cls._next_config  # type: ignore[attr-defined]
+
+
 
 
 class _FakeRobotConfiguration:
@@ -445,3 +464,116 @@ def test_bind_raises_when_adapter_make_returns_none():
             http=MagicMock(),
         )
     assert "rclpy" in str(exc.value).lower()
+
+
+# ----- bind_from_yaml (YAML-driven mode, the default) -----
+
+
+def _stub_yaml_fleet_config(robots: list[str]) -> _FakeFleetConfiguration:
+    """Build a fake FleetConfiguration the way `from_config_files` would
+    have returned it — populated `known_robots` + a per-robot config map."""
+    return _FakeFleetConfiguration(
+        fleet_name="service_robots",
+        known_robots=list(robots),
+        _robot_configs={name: _FakeRobotConfiguration([name]) for name in robots},
+    )
+
+
+def test_bind_from_yaml_calls_from_config_files_and_registers_robots(tmp_path):
+    rmf = make_fake_rmf_adapter()
+    http = MagicMock()
+    handles: dict[str, Any] = {}
+    config_path = tmp_path / "fleet.yaml"
+    nav_graph_path = tmp_path / "nav_graph.yaml"
+    config_path.write_text("rmf_fleet: {name: service_robots}\nquiksync: {}\n")
+    nav_graph_path.write_text("levels: []\n")
+
+    _FakeFleetConfiguration._next_config = _stub_yaml_fleet_config(["robot-1", "robot-2"])
+
+    adapter, fleet_handle = bind_from_yaml(
+        rmf_adapter=rmf,
+        config_path=str(config_path),
+        nav_graph_path=str(nav_graph_path),
+        http=http,
+        handles=handles,
+        fleet_name="service_robots",
+    )
+
+    assert isinstance(adapter, _FakeAdapter)
+    assert adapter.node_name == "fleet_adapter_quiksync"
+    assert len(adapter.added_fleet_configs) == 1
+    # Both robots from `known_robots` were added
+    added_names = {r["name"] for r in fleet_handle.added_robots}
+    assert added_names == {"robot-1", "robot-2"}
+    # Handles dict was populated lazily — robot_handles are now bound
+    assert set(handles.keys()) == {"robot-1", "robot-2"}
+    assert handles["robot-1"].is_bound()
+    assert handles["robot-2"].is_bound()
+
+
+def test_bind_from_yaml_propagates_server_uri(tmp_path):
+    rmf = make_fake_rmf_adapter()
+    config_path = tmp_path / "fleet.yaml"
+    nav_graph_path = tmp_path / "nav_graph.yaml"
+    config_path.write_text("rmf_fleet: {}\nquiksync: {}\n")
+    nav_graph_path.write_text("levels: []\n")
+
+    _FakeFleetConfiguration._next_config = _stub_yaml_fleet_config([])
+
+    bind_from_yaml(
+        rmf_adapter=rmf,
+        config_path=str(config_path),
+        nav_graph_path=str(nav_graph_path),
+        http=MagicMock(),
+        handles={},
+        fleet_name="service_robots",
+        server_uri="ws://localhost:7878",
+    )
+
+    fc = _FakeFleetConfiguration._next_config
+    assert fc.server_uri == "ws://localhost:7878"
+
+
+def test_bind_from_yaml_requires_nav_graph_path():
+    rmf = make_fake_rmf_adapter()
+    with pytest.raises(BindingError, match="nav graph"):
+        bind_from_yaml(
+            rmf_adapter=rmf,
+            config_path="/tmp/fleet.yaml",
+            nav_graph_path="",
+            http=MagicMock(),
+            handles={},
+            fleet_name="service_robots",
+        )
+
+
+def test_bind_from_yaml_requires_config_path():
+    rmf = make_fake_rmf_adapter()
+    with pytest.raises(BindingError, match="config file"):
+        bind_from_yaml(
+            rmf_adapter=rmf,
+            config_path="",
+            nav_graph_path="/tmp/nav.yaml",
+            http=MagicMock(),
+            handles={},
+            fleet_name="service_robots",
+        )
+
+
+def test_bind_from_yaml_raises_when_from_config_files_returns_none(tmp_path):
+    rmf = make_fake_rmf_adapter()
+    config_path = tmp_path / "fleet.yaml"
+    nav_graph_path = tmp_path / "nav_graph.yaml"
+    config_path.write_text("")
+    nav_graph_path.write_text("")
+
+    _FakeFleetConfiguration._next_config = None  # type: ignore[assignment]
+    with pytest.raises(BindingError, match="returned None"):
+        bind_from_yaml(
+            rmf_adapter=rmf,
+            config_path=str(config_path),
+            nav_graph_path=str(nav_graph_path),
+            http=MagicMock(),
+            handles={},
+            fleet_name="service_robots",
+        )

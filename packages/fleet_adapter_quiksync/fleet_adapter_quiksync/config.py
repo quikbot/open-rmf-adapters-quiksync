@@ -1,17 +1,55 @@
 """YAML config loader for fleet_adapter_quiksync.
 
-Per design §6.2: the adapter needs Auth0 M2M credentials, the QuikSync
-HTTPS base URL, the Open-RMF fleet name to register, and a path to the
-building map / nav graph. Config can come from:
+The adapter accepts a single YAML file with **two top-level blocks**:
 
-  1. A YAML file (recommended for production — secrets via Docker secret
-     mount referenced from YAML)
-  2. Environment variables (recommended for dev / smoke)
-  3. Inline kwargs (tests)
+```yaml
+rmf_fleet:        # Standard Open-RMF fleet config (matches fleet_adapter_template).
+  name: ...
+  limits: ...
+  profile: ...
+  battery_system: ...
+  task_capabilities: ...
+  robots: ...
+quiksync:         # QuikSync-specific extension block — Auth0 + endpoint wiring.
+  base_url: ...
+  auth0_tenant: ...
+  auth0_audience: ...
+  auth0_client_id: ...
+  auth0_client_secret_file: ...
+  auth0_organization: ...
+  fleet_name: ...
+  dynamic_mode: false   # opt-in
+```
+
+This module parses the `quiksync:` block into `FleetAdapterConfig`. The
+`rmf_fleet:` block is opaque to this module — the adapter passes the
+*YAML file path* to `rmf_adapter.easy_full_control.FleetConfiguration.from_config_files(...)`
+which parses that block natively (matches `fleet_adapter_template`).
+
+Two operating modes, selected by `quiksync.dynamic_mode`:
+
+- **`false` (default)**: YAML-driven. The operator provides both `rmf_fleet:`
+  and `quiksync:` blocks plus a separate `nav_graph.yaml` (passed to the
+  launch file via `nav_graph:=...`). The adapter calls `from_config_files`.
+  This is the recommended path; matches the canonical Open-RMF community
+  pattern.
+- **`true`**: dynamic. The `rmf_fleet:` block is ignored (and not required
+  in the YAML); the adapter fetches `/discovery` + `/building_map` from
+  the QuikSync Open-RMF Connector and builds `FleetConfiguration`
+  in-memory. The `nav_graph` launch arg is also not required in this
+  mode. Convenient when the catalogue is the source of truth and the
+  operator doesn't want to maintain YAML in sync.
+
+Config can come from:
+1. A YAML file (recommended for production — secrets via Docker secret mount).
+2. Environment variables (prefix `FLEET_ADAPTER_`; sets the `quiksync:`
+   fields; implies `dynamic_mode=true` since there's no `rmf_fleet:` block
+   from env).
+3. Inline kwargs (tests).
 
 Validation discipline: missing required fields raise `ConfigError` at
-load time with a clear message. Unknown YAML keys raise too — catches
-typos.
+load time with a clear message. Unknown keys in the `quiksync:` block
+raise too — catches typos.
 """
 
 from __future__ import annotations
@@ -19,7 +57,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -30,10 +68,12 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class FleetAdapterConfig:
-    # QuikSync API + Auth0 wiring
+    """QuikSync-side extension config — parsed from the YAML's `quiksync:` block."""
+
+    # QuikSync Connector + Auth0 wiring
     base_url: str          # e.g. "https://<your-quiksync-host>"
     auth0_tenant: str              # e.g. "<your-auth0-tenant>.auth0.com"
-    auth0_audience: str            # always "https://<your-quiksync-api-audience>/open-rmf"
+    auth0_audience: str            # e.g. "https://<your-quiksync-api-audience>/open-rmf"
     auth0_client_id: str
     auth0_client_secret: str       # NOT logged
     auth0_organization: str        # Auth0 Org id matching the customer
@@ -42,11 +82,24 @@ class FleetAdapterConfig:
     # Tuning knobs (sensible defaults)
     update_interval_seconds: float = 0.5
     state_subscribe_reconnect_seconds: float = 1.0
+    # Mode selector
+    dynamic_mode: bool = False     # false = YAML-driven; true = fetch /discovery + /building_map
 
     # ----- Construction -----
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "FleetAdapterConfig":
+        """Parse `quiksync:` block from a YAML file.
+
+        Accepts either:
+        - Nested form: `{quiksync: {base_url: ..., ...}}` (recommended).
+        - Flat form: `{base_url: ..., ...}` (backward-compatible; assumed
+          dynamic_mode since there's no `rmf_fleet:` block alongside).
+
+        The `rmf_fleet:` sibling block (if present) is not parsed here —
+        it's the adapter's job to pass the file path verbatim to
+        `FleetConfiguration.from_config_files`.
+        """
         path = Path(path)
         if not path.exists():
             raise ConfigError(f"config file not found: {path}")
@@ -54,16 +107,49 @@ class FleetAdapterConfig:
             data = yaml.safe_load(f) or {}
         if not isinstance(data, dict):
             raise ConfigError(f"config root must be a dict; got {type(data).__name__}")
-        return cls.from_dict(data)
+
+        # Prefer the nested `quiksync:` block; otherwise treat the whole
+        # document as flat.
+        if "quiksync" in data and isinstance(data["quiksync"], dict):
+            quiksync_block = data["quiksync"]
+            # If the YAML has no `rmf_fleet:` block, dynamic_mode is the
+            # only viable mode regardless of what the operator set — they
+            # have nothing to feed `from_config_files`. Surface a clear
+            # error rather than silently flipping the mode.
+            if (
+                not quiksync_block.get("dynamic_mode", False)
+                and "rmf_fleet" not in data
+            ):
+                raise ConfigError(
+                    "YAML mode (dynamic_mode=false) requires an `rmf_fleet:` block "
+                    "alongside `quiksync:` in the config file. Either add the "
+                    "block or set `quiksync.dynamic_mode: true`."
+                )
+            return cls.from_dict(quiksync_block)
+
+        # Flat form — backward compat. Implies dynamic_mode since there's
+        # no `rmf_fleet:` block possible here.
+        flat = dict(data)
+        flat.setdefault("dynamic_mode", True)
+        return cls.from_dict(flat)
 
     @classmethod
     def from_env(cls) -> "FleetAdapterConfig":
-        """Build from environment variables. Convention: CONFIG_<UPPER_FIELD>."""
-        d = {}
+        """Build from environment variables (prefix `FLEET_ADAPTER_`).
+
+        Env-only configuration implies `dynamic_mode=true` since there's
+        no `rmf_fleet:` block from env. The operator can override by
+        setting `FLEET_ADAPTER_DYNAMIC_MODE=false` AND providing a
+        separate config YAML via the launch arg, but typical env-driven
+        deployments use dynamic mode.
+        """
+        d: dict[str, Any] = {}
         for field in cls.__dataclass_fields__:
             env_key = f"FLEET_ADAPTER_{field.upper()}"
             if env_key in os.environ:
                 d[field] = os.environ[env_key]
+        # Env mode defaults to dynamic.
+        d.setdefault("dynamic_mode", True)
         return cls.from_dict(d)
 
     @classmethod
@@ -92,6 +178,10 @@ class FleetAdapterConfig:
                     data[numeric] = float(data[numeric])
                 except ValueError as e:
                     raise ConfigError(f"{numeric} must be a number; got {data[numeric]!r}") from e
+
+        # Coerce dynamic_mode from string (env / YAML loose-typing)
+        if "dynamic_mode" in data and isinstance(data["dynamic_mode"], str):
+            data["dynamic_mode"] = data["dynamic_mode"].strip().lower() in ("1", "true", "yes", "on")
 
         # Required fields check
         required = {

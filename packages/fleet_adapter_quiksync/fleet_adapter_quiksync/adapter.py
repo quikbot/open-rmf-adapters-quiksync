@@ -50,7 +50,7 @@ from quiksync_client import (
     WsConfig,
 )
 
-from .binding import BindingError, bind_easy_full_control
+from .binding import BindingError, bind_easy_full_control, bind_from_yaml
 from .config import ConfigError, FleetAdapterConfig
 from .robot_handle import RobotHandle
 from .state_pump import FleetStatePump
@@ -154,6 +154,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="path to YAML config; alternatively use FLEET_ADAPTER_* env vars",
     )
     parser.add_argument(
+        "--nav-graph",
+        help=(
+            "path to nav graph YAML (required in YAML mode; ignored in dynamic mode). "
+            "Standard Open-RMF nav graph format, same shape consumed by "
+            "`FleetConfiguration.from_config_files`."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="bootstrap + log + exit (no rmf_adapter required)",
@@ -184,36 +192,64 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 1
 
     log.info(
-        "fleet_adapter_quiksync starting: fleet=%s base=%s org=%s",
+        "fleet_adapter_quiksync starting: fleet=%s base=%s org=%s mode=%s",
         config.fleet_name, config.base_url, config.auth0_organization,
+        "dynamic" if config.dynamic_mode else "yaml",
     )
 
     auth, http, ws = build_clients(config)
 
-    # Fetch discovery once at startup
-    try:
-        discovery = http.get_discovery()
-    except Exception as e:  # noqa: BLE001
-        log.error("discovery fetch failed: %s", e)
-        auth.close()
-        http.close()
-        return 3
+    # Dynamic mode pre-flight: fetch /discovery + locate our fleet. YAML
+    # mode skips this; the fleet shape is in the YAML's `rmf_fleet:` block.
+    fleet_entry: Optional[dict[str, Any]] = None
+    handles: dict[str, RobotHandle] = {}
+    if config.dynamic_mode:
+        try:
+            discovery = http.get_discovery()
+        except Exception as e:  # noqa: BLE001
+            log.error("discovery fetch failed: %s", e)
+            auth.close()
+            http.close()
+            return 3
 
-    fleet_entry = find_our_fleet(discovery, config.fleet_name)
-    if fleet_entry is None:
-        available = [f.get("fleet_name") for f in (discovery.get("fleets") or []) if isinstance(f, dict)]
-        log.error(
-            "fleet %r not found in discovery; available=%s", config.fleet_name, available,
-        )
-        auth.close()
-        http.close()
-        return 4
+        fleet_entry = find_our_fleet(discovery, config.fleet_name)
+        if fleet_entry is None:
+            available = [
+                f.get("fleet_name") for f in (discovery.get("fleets") or [])
+                if isinstance(f, dict)
+            ]
+            log.error(
+                "fleet %r not found in discovery; available=%s",
+                config.fleet_name, available,
+            )
+            auth.close()
+            http.close()
+            return 4
 
-    handles = build_robot_handles(fleet_entry)
-    log.info("registered %d robots locally: %s", len(handles), sorted(handles))
+        handles = build_robot_handles(fleet_entry)
+        log.info("registered %d robots locally (dynamic mode): %s", len(handles), sorted(handles))
 
     rmf_adapter = _try_import_rmf_adapter()
     dry_run = args.dry_run or rmf_adapter is None
+
+    # Dry-run requires fleet_entry (it drains a few WSS frames against
+    # the discovered fleet). If the operator triggered dry-run in YAML
+    # mode, fetch discovery now just for the dry-run pre-flight.
+    if dry_run and fleet_entry is None:
+        try:
+            discovery = http.get_discovery()
+        except Exception as e:  # noqa: BLE001
+            log.error("dry-run discovery fetch failed: %s", e)
+            auth.close()
+            http.close()
+            return 3
+        fleet_entry = find_our_fleet(discovery, config.fleet_name)
+        if fleet_entry is None:
+            log.error("dry-run: fleet %r not found in discovery", config.fleet_name)
+            auth.close()
+            http.close()
+            return 4
+        handles = build_robot_handles(fleet_entry)
 
     try:
         if dry_run:
@@ -226,6 +262,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                 ws=ws,
                 handles=handles,
                 fleet_entry=fleet_entry,
+                config_path=args.config,
+                nav_graph_path=args.nav_graph,
                 server_uri=args.server_uri or None,
                 use_sim_time=args.use_sim_time,
             )
@@ -241,7 +279,9 @@ def _run_full(
     http: QuikSyncHttpClient,
     ws: QuikSyncWsClient,
     handles: dict[str, RobotHandle],
-    fleet_entry: dict[str, Any],
+    fleet_entry: Optional[dict[str, Any]] = None,
+    config_path: Optional[str] = None,
+    nav_graph_path: Optional[str] = None,
     server_uri: Optional[str] = None,
     use_sim_time: bool = False,
 ) -> int:
@@ -285,18 +325,38 @@ def _run_full(
         if hasattr(rmf_adapter, "init_rclcpp"):
             rmf_adapter.init_rclcpp()
 
-        log.info("fetching building_map for fleet=%s", config.fleet_name)
-        building_map = http.get_building_map()
-
         try:
-            adapter, fleet_handle = bind_easy_full_control(
-                rmf_adapter=rmf_adapter,
-                fleet_entry=fleet_entry,
-                building_map=building_map,
-                handles=handles,
-                http=http,
-                server_uri=server_uri,
-            )
+            if config.dynamic_mode:
+                # Dynamic path: fetch /building_map, build FleetConfiguration
+                # in-memory from discovery + building map.
+                if fleet_entry is None:
+                    raise BindingError(
+                        "dynamic mode requires a fleet entry from /discovery "
+                        "(internal invariant — was main() short-circuited?)"
+                    )
+                log.info("dynamic mode: fetching building_map for fleet=%s", config.fleet_name)
+                building_map = http.get_building_map()
+                adapter, fleet_handle = bind_easy_full_control(
+                    rmf_adapter=rmf_adapter,
+                    fleet_entry=fleet_entry,
+                    building_map=building_map,
+                    handles=handles,
+                    http=http,
+                    server_uri=server_uri,
+                )
+            else:
+                # YAML path: hand the config + nav_graph file paths to
+                # `FleetConfiguration.from_config_files`. Matches the
+                # canonical fleet_adapter_template entry point.
+                adapter, fleet_handle = bind_from_yaml(
+                    rmf_adapter=rmf_adapter,
+                    config_path=config_path or "",
+                    nav_graph_path=nav_graph_path or "",
+                    http=http,
+                    handles=handles,
+                    fleet_name=config.fleet_name,
+                    server_uri=server_uri,
+                )
         except BindingError as e:
             log.error("EasyFullControl binding failed: %s", e)
             return 7
