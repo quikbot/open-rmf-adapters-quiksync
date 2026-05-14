@@ -129,24 +129,66 @@ A multi-stage [`Dockerfile`](docker/Dockerfile) is provided that builds all four
 
 ## Configuration
 
-`fleet_adapter_quiksync` is configured via YAML (file path passed to the launch file) or environment variables (prefix `FLEET_ADAPTER_`). File config wins when both are present.
+`fleet_adapter_quiksync` runs in one of two modes, selected by
+`quiksync.dynamic_mode` in the config YAML:
 
-| Key | Type | Required | Description |
+- **YAML mode (default)**: the standard Open-RMF pattern — config YAML
+  with an `rmf_fleet:` block + a separate nav-graph YAML. Matches
+  [`fleet_adapter_template`](https://github.com/open-rmf/fleet_adapter_template);
+  the adapter calls `FleetConfiguration.from_config_files(...)`.
+- **Dynamic mode (opt-in)**: the adapter fetches fleet shape from
+  `/discovery` and the building map from `/building_map` on the
+  QuikSync Open-RMF Connector at startup. Useful when the catalogue is
+  the source of truth and the operator doesn't want to maintain YAML
+  in sync.
+
+### Config schema
+
+The YAML carries two top-level blocks:
+
+```yaml
+# Standard Open-RMF block (required in YAML mode; omit in dynamic mode).
+rmf_fleet:
+  name: service_robots
+  limits: { linear: [0.5, 0.75], angular: [0.6, 2.0] }
+  profile: { footprint: 0.3, vicinity: 0.5 }
+  battery_system: { voltage: 12.0, capacity: 24.0, charging_current: 5.0 }
+  task_capabilities: { loop: true, delivery: true }
+  robots:
+    service_robot_1: { charger: "charger_1" }
+  # ... see fleet_adapter_template's config.yaml for the full schema.
+
+# QuikSync extension block (always required).
+quiksync:
+  dynamic_mode: false        # YAML (default) or dynamic
+  base_url: ...
+  auth0_tenant: ...
+  auth0_audience: ...
+  auth0_client_id: ...
+  auth0_client_secret_file: ...
+  auth0_organization: ...
+  fleet_name: ...            # must match rmf_fleet.name in YAML mode
+```
+
+| Key (under `quiksync:`) | Type | Required | Description |
 |---|---|---|---|
-| `base_url` | string | yes | The HTTPS endpoint for your QuikSync deployment, e.g. `https://<your-quiksync-host>`. |
+| `dynamic_mode` | bool | — | `false` (default) = YAML-driven. `true` = fetch from `/discovery` + `/building_map`. |
+| `base_url` | string | yes | HTTPS endpoint of the QuikSync Open-RMF Connector, e.g. `https://<your-quiksync-host>`. |
 | `auth0_tenant` | string | yes | Auth0 tenant subdomain, e.g. `<your-auth0-tenant>.auth0.com`. |
-| `auth0_audience` | string | yes | Auth0 audience for the QuikSync adapter API, e.g. `https://<your-quiksync-api-audience>/open-rmf`. |
-| `auth0_client_id` | string | yes | The M2M client ID provisioned by QuikSync ops. |
-| `auth0_client_secret` | string | yes\* | The M2M client secret. **Prefer `auth0_client_secret_file`** below; inlining the secret is convenient for development but discouraged in production. |
-| `auth0_client_secret_file` | path | — | Path to a file containing the M2M client secret. Resolved at config-load and replaces `auth0_client_secret`. Recommended for production (Docker secret mount, k8s `Secret`, Vault projection, etc.). |
-| `auth0_organization` | string | yes | The Auth0 organisation ID (`org_xxxxx`) corresponding to your tenant on QuikSync. |
-| `fleet_name` | string | yes | The fleet identifier to register with Open-RMF. Must match a fleet visible to your organisation via the QuikSync adapter API's `/discovery` endpoint. |
-| `update_interval_seconds` | float | — | How often `EasyRobotUpdateHandle.update()` is invoked per robot. Default `0.5`. |
-| `state_subscribe_reconnect_seconds` | float | — | Base backoff after a WSS disconnect. Default `1.0` (with jittered exponential ramp, capped at 30s). |
+| `auth0_audience` | string | yes | Auth0 audience for the Connector, e.g. `https://<your-quiksync-api-audience>/open-rmf`. |
+| `auth0_client_id` | string | yes | M2M client ID provisioned by QuikSync ops. |
+| `auth0_client_secret` | string | yes\* | M2M client secret. **Prefer `auth0_client_secret_file`** below in production. |
+| `auth0_client_secret_file` | path | — | Path to a file containing the M2M client secret (Docker secret mount, k8s `Secret`, Vault projection, etc.). |
+| `auth0_organization` | string | yes | Auth0 organisation ID (`org_xxxxx`) for your tenant. |
+| `fleet_name` | string | yes | Fleet identifier to register. Must match `rmf_fleet.name` (YAML mode) and a fleet visible via `/discovery` (both modes). |
+| `update_interval_seconds` | float | — | `EasyRobotUpdateHandle.update()` cadence per robot. Default `0.5`. |
+| `state_subscribe_reconnect_seconds` | float | — | Base backoff after a WSS disconnect. Default `1.0` (jittered exponential ramp, capped at 30s). |
 
 \* Either `auth0_client_secret` or `auth0_client_secret_file` must be supplied. Use the file form in production.
 
-See [`packages/fleet_adapter_quiksync/config/quiksync.yaml.example`](packages/fleet_adapter_quiksync/config/quiksync.yaml.example) for a copy-and-fill template.
+Env-var configuration (`FLEET_ADAPTER_<UPPER_FIELD>`) is supported for the `quiksync:` keys; using env-var-only configuration implies `dynamic_mode=true` (env has no `rmf_fleet:` block to load).
+
+See [`packages/fleet_adapter_quiksync/config/quiksync.yaml.example`](packages/fleet_adapter_quiksync/config/quiksync.yaml.example) for a complete copy-and-fill template (both blocks populated).
 
 ## Run
 
@@ -165,15 +207,25 @@ auth or routing misconfiguration before the full adapter loop comes up.
 
 ### Full run (real `rmf_ros2` deployment)
 
+YAML mode (default):
+
 ```bash
 source /opt/ros/jazzy/setup.bash
 source ~/quiksync_ws/install/setup.bash
 
 ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
     config:=/etc/quiksync/fleet.yaml \
-    client_id:=$ADAPTER_CLIENT_ID \
-    client_secret_file:=/run/secrets/quiksync_adapter_credentials
+    nav_graph:=/etc/quiksync/nav_graph.yaml
 ```
+
+Dynamic mode (set `quiksync.dynamic_mode: true` in your YAML first; `nav_graph` becomes optional):
+
+```bash
+ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
+    config:=/etc/quiksync/fleet.yaml
+```
+
+Optional flags: `server_uri:=ws://localhost:7878` to publish task/fleet state to a `rmf-web` API server; `use_sim_time:=true` for simulation testing.
 
 A combined launch that includes future v2 door + lift roles is provided at
 [`launch/quiksync_all.launch.xml`](launch/quiksync_all.launch.xml). In v1 it

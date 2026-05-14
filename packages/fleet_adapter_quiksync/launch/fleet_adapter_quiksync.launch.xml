@@ -2,19 +2,38 @@
 <!--
   Launch the QuikSync fleet adapter.
 
+  Two modes (selected by `quiksync.dynamic_mode` in the config YAML):
+
+  - YAML mode (default): operator provides both a config YAML with an
+    `rmf_fleet:` block + a nav graph YAML. Matches the standard Open-RMF
+    fleet_adapter_template pattern. Pass `nav_graph:=...`.
+  - Dynamic mode (opt-in): adapter fetches fleet shape + building map
+    from the QuikSync Open-RMF Connector. `nav_graph` is not required.
+
   Args:
     config       — path to the YAML config (REQUIRED)
+    nav_graph    — path to the nav graph YAML (REQUIRED in YAML mode; ignored in dynamic mode)
+    server_uri   — Open-RMF API server URI for publishing task/state to rmf-web (optional)
     dry_run      — bootstrap + log + exit; no rmf_adapter required ("false"/"true")
+    use_sim_time — Use ROS simulated time (for offline / simulator testing)
     log_level    — Python logging level for the adapter process
 
-  Example:
+  Examples:
+    # YAML mode (default):
     ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
       config:=/etc/quiksync/fleet.yaml \
-      log_level:=INFO
+      nav_graph:=/etc/quiksync/nav_graph.yaml
+
+    # Dynamic mode (set `quiksync.dynamic_mode: true` in your YAML first):
+    ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
+      config:=/etc/quiksync/fleet.yaml
 -->
 <launch>
   <arg name="config" description="path to fleet_adapter_quiksync YAML config"/>
+  <arg name="nav_graph" default="" description="path to nav graph YAML (required in YAML mode)"/>
+  <arg name="server_uri" default="" description="Open-RMF API server URI for publishing task/state to rmf-web (optional)"/>
   <arg name="dry_run" default="false" description="bootstrap + log + exit (no rmf_adapter required)"/>
+  <arg name="use_sim_time" default="false" description="Use ROS simulated time"/>
   <arg name="log_level" default="INFO"/>
 
   <node pkg="fleet_adapter_quiksync"
@@ -25,6 +44,9 @@
     <env name="PYTHONUNBUFFERED" value="1"/>
     <env name="LOG_LEVEL" value="$(var log_level)"/>
     <arg if="$(var dry_run)" name="--dry-run"/>
+    <arg if="$(var use_sim_time)" name="--use-sim-time"/>
     <arg name="--config" value="$(var config)"/>
+    <arg name="--nav-graph" value="$(var nav_graph)"/>
+    <arg name="--server-uri" value="$(var server_uri)"/>
   </node>
 </launch>

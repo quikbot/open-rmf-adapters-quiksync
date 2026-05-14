@@ -53,6 +53,84 @@ def test_from_yaml_missing_file_raises(tmp_path: Path):
         FleetAdapterConfig.from_yaml(tmp_path / "nope.yaml")
 
 
+# ----- nested YAML form (the canonical shape) -----
+
+
+def test_from_yaml_nested_block_with_rmf_fleet(tmp_path: Path):
+    """The canonical YAML form: `rmf_fleet:` + `quiksync:` siblings,
+    `dynamic_mode` defaults to False."""
+    quiksync_block = "\n".join(f"  {k}: {v}" for k, v in REQUIRED.items())
+    yaml_text = (
+        "rmf_fleet:\n"
+        "  name: service_robots\n"
+        "  limits:\n"
+        "    linear: [0.5, 0.75]\n"
+        "    angular: [0.6, 2.0]\n"
+        "  profile:\n"
+        "    footprint: 0.3\n"
+        "    vicinity: 0.5\n"
+        "quiksync:\n"
+        + quiksync_block + "\n"
+    )
+    cfg_file = tmp_path / "fleet.yaml"
+    cfg_file.write_text(yaml_text)
+    cfg = FleetAdapterConfig.from_yaml(cfg_file)
+    assert cfg.fleet_name == "service_robots"
+    assert cfg.dynamic_mode is False  # YAML mode by default
+
+
+def test_from_yaml_nested_with_dynamic_mode_true_no_rmf_fleet_block_required(tmp_path: Path):
+    """When `quiksync.dynamic_mode: true`, `rmf_fleet:` block is not required."""
+    quiksync_block = "\n".join(f"  {k}: {v}" for k, v in REQUIRED.items())
+    yaml_text = "quiksync:\n  dynamic_mode: true\n" + quiksync_block + "\n"
+    cfg_file = tmp_path / "fleet.yaml"
+    cfg_file.write_text(yaml_text)
+    cfg = FleetAdapterConfig.from_yaml(cfg_file)
+    assert cfg.dynamic_mode is True
+
+
+def test_from_yaml_nested_missing_rmf_fleet_with_dynamic_false_raises(tmp_path: Path):
+    """When dynamic_mode is false (default), `rmf_fleet:` block must
+    be present alongside `quiksync:`."""
+    quiksync_block = "\n".join(f"  {k}: {v}" for k, v in REQUIRED.items())
+    yaml_text = "quiksync:\n" + quiksync_block + "\n"
+    cfg_file = tmp_path / "fleet.yaml"
+    cfg_file.write_text(yaml_text)
+    with pytest.raises(ConfigError, match="rmf_fleet"):
+        FleetAdapterConfig.from_yaml(cfg_file)
+
+
+def test_from_yaml_flat_form_implies_dynamic_mode(tmp_path: Path):
+    """Backward-compat flat YAML (no `quiksync:` block) implies dynamic_mode
+    because there's no place to put an `rmf_fleet:` block."""
+    yaml_text = "\n".join(f"{k}: {v}" for k, v in REQUIRED.items()) + "\n"
+    cfg_file = tmp_path / "fleet.yaml"
+    cfg_file.write_text(yaml_text)
+    cfg = FleetAdapterConfig.from_yaml(cfg_file)
+    assert cfg.dynamic_mode is True
+
+
+# ----- dynamic_mode parsing -----
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("true", True), ("True", True), ("1", True), ("yes", True), ("on", True),
+    ("false", False), ("False", False), ("0", False), ("no", False), ("off", False),
+    ("", False),
+])
+def test_dynamic_mode_string_coercion(raw, expected):
+    d = dict(REQUIRED, dynamic_mode=raw)
+    cfg = FleetAdapterConfig.from_dict(d)
+    assert cfg.dynamic_mode is expected
+
+
+def test_dynamic_mode_bool_passthrough():
+    cfg_true = FleetAdapterConfig.from_dict(dict(REQUIRED, dynamic_mode=True))
+    cfg_false = FleetAdapterConfig.from_dict(dict(REQUIRED, dynamic_mode=False))
+    assert cfg_true.dynamic_mode is True
+    assert cfg_false.dynamic_mode is False
+
+
 def test_secret_from_file(tmp_path: Path):
     secret_file = tmp_path / "secret.txt"
     secret_file.write_text("from-file-secret\n")
