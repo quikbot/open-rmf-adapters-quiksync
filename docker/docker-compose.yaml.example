@@ -1,0 +1,59 @@
+# docker-compose example for the QuikSync Open-RMF adapters.
+#
+# Copy to docker-compose.yaml on the customer's Open-RMF deployment host;
+# fill in the secret content + config path; start with `docker compose up -d`.
+#
+# Architecture: one container per adapter role. The fleet adapter (v1)
+# runs the real workload; door + lift adapters are v2 (start the
+# containers but they idle in v1 — saves having to alter compose
+# topology when v2 lands).
+
+services:
+  fleet-adapter-quiksync:
+    image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
+    # Or pin by digest in production:
+    # image: ghcr.io/quikbot/open-rmf-adapters-quiksync@sha256:<digest>
+    restart: unless-stopped
+    network_mode: host  # ROS DDS prefers host networking
+    environment:
+      FLEET_CONFIG: /etc/quiksync/fleet.yaml
+      ROS_DOMAIN_ID: 0  # match the customer's Open-RMF ROS_DOMAIN_ID
+    volumes:
+      - /etc/quiksync:/etc/quiksync:ro
+    secrets:
+      - quiksync_adapter_credentials
+
+  # v2 — uncomment when the door adapter ships real logic
+  # door-adapter-quiksync:
+  #   image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
+  #   command: ["ros2", "run", "door_adapter_quiksync", "door_adapter_quiksync"]
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   environment:
+  #     DOOR_CONFIG: /etc/quiksync/doors.yaml
+  #     ROS_DOMAIN_ID: 0
+  #   volumes:
+  #     - /etc/quiksync:/etc/quiksync:ro
+  #   secrets:
+  #     - quiksync_adapter_credentials
+
+  # v2 — uncomment when the lift adapter ships real logic
+  # lift-adapter-quiksync:
+  #   image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
+  #   command: ["ros2", "run", "lift_adapter_quiksync", "lift_adapter_quiksync"]
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   environment:
+  #     LIFT_CONFIG: /etc/quiksync/lifts.yaml
+  #     ROS_DOMAIN_ID: 0
+  #   volumes:
+  #     - /etc/quiksync:/etc/quiksync:ro
+  #   secrets:
+  #     - quiksync_adapter_credentials
+
+secrets:
+  quiksync_adapter_credentials:
+    # QuikSync ops hands off the client_secret out-of-band at customer onboarding;
+    # customer stores in their preferred secrets manager (HashiCorp Vault /
+    # AWS Secrets Manager / k8s Secret) and projects it as a file here.
+    file: /etc/quiksync/.adapter_credentials  # chmod 0400, root-owned

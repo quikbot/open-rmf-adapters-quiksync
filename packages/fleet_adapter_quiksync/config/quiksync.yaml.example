@@ -1,0 +1,25 @@
+# fleet_adapter_quiksync — config template
+#
+# Copy to a customer-side path (e.g. /etc/quiksync/fleet.yaml) and fill in
+# values from the Auth0 M2M client provisioned by QuikSync ops.
+#
+# The client_secret is provisioned via Docker secret mount; reference it
+# via `auth0_client_secret_file` instead of inlining.
+
+# REQUIRED — QuikSync HTTPS endpoint
+base_url: https://<your-quiksync-host>
+
+# REQUIRED — Auth0 M2M client (provisioned per customer at onboarding)
+auth0_tenant: <customer-tenant>.auth0.com
+auth0_audience: https://<your-quiksync-api-audience>/open-rmf
+auth0_client_id: <m2m-client-id-from-quiksync-ops>
+auth0_client_secret_file: /run/secrets/quiksync_adapter_credentials
+auth0_organization: <auth0-org-id>
+
+# REQUIRED — must match a fleet declared in the customer's QuikSync tenant
+# (visible to this Auth0 org via the adapter API's /discovery endpoint)
+fleet_name: service_robots
+
+# Optional — tuning knobs (defaults shown)
+update_interval_seconds: 0.5
+state_subscribe_reconnect_seconds: 1.0

@@ -1,0 +1,60 @@
+name: release-please
+
+# Opens / updates a Release PR on every push to main, based on the
+# Conventional Commits since the last release tag. Merging the PR
+# creates a GitHub Release + git tag, and bumps the version line in
+# the version-bearing files (setup.py / package.xml / __init__.py
+# across all four packages) per the `x-release-please-version`
+# markers in each file.
+#
+# Mirrors modules/open-rmf-bridge's release-please workflow in the
+# parent monorepo — same App-token pattern so Release PRs trigger
+# required CI checks (PRs authored by GITHUB_TOKEN don't, by GitHub
+# design; App-authored PRs do).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      # Mint a short-lived token for the quikbot-release-please GitHub App.
+      # The App is installed at the org level. `vars.RELEASE_PLEASE_APP_ID`
+      # and `secrets.RELEASE_PLEASE_APP_PRIVATE_KEY` must be set as org-
+      # scoped values with this repo allowlisted.
+      - uses: actions/create-github-app-token@v3.1.1
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ steps.app-token.outputs.token }}
+      # Auto-clean the release-please working branch between releases
+      # so a stale branch doesn't linger after the Release PR merges.
+      - name: Clean up stale release-please branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BRANCH: release-please--branches--main
+        run: |
+          if ! gh api "/repos/${{ github.repository }}/branches/${BRANCH}" --jq .name >/dev/null 2>&1; then
+            echo "Branch ${BRANCH} does not exist; nothing to clean."
+            exit 0
+          fi
+          OPEN=$(gh pr list --repo "${{ github.repository }}" --head "${BRANCH}" --state open --json number --jq 'length')
+          if [[ "${OPEN}" != "0" ]]; then
+            echo "Open Release PR exists on ${BRANCH}; leaving in place."
+            exit 0
+          fi
+          echo "No open Release PR on ${BRANCH}; deleting stale branch."
+          gh api -X DELETE "/repos/${{ github.repository }}/git/refs/heads/${BRANCH}"

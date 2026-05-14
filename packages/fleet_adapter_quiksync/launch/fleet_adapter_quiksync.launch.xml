@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!--
+  Launch the QuikSync fleet adapter.
+
+  Args:
+    config       — path to the YAML config (REQUIRED)
+    dry_run      — bootstrap + log + exit; no rmf_adapter required ("false"/"true")
+    log_level    — Python logging level for the adapter process
+
+  Example:
+    ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
+      config:=/etc/quiksync/fleet.yaml \
+      log_level:=INFO
+-->
+<launch>
+  <arg name="config" description="path to fleet_adapter_quiksync YAML config"/>
+  <arg name="dry_run" default="false" description="bootstrap + log + exit (no rmf_adapter required)"/>
+  <arg name="log_level" default="INFO"/>
+
+  <node pkg="fleet_adapter_quiksync"
+        exec="fleet_adapter_quiksync"
+        name="fleet_adapter_quiksync"
+        output="screen">
+    <param name="--ros-args" value=""/>
+    <env name="PYTHONUNBUFFERED" value="1"/>
+    <env name="LOG_LEVEL" value="$(var log_level)"/>
+    <arg if="$(var dry_run)" name="--dry-run"/>
+    <arg name="--config" value="$(var config)"/>
+  </node>
+</launch>

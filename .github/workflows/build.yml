@@ -1,0 +1,60 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: colcon build + test
+    runs-on: ubuntu-24.04
+    container:
+      image: ros:jazzy-ros-base
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install python deps not in apt
+        run: |
+          apt-get update
+          # Don't install python3-pytest from apt: its pluggy 1.4 conflicts
+          # with pytest-asyncio 1.3+ which requires pluggy 1.6+. Pip can't
+          # uninstall the apt-managed pluggy ("RECORD file not found"). Let
+          # pip own the entire pytest stack instead.
+          apt-get install -y python3-pip
+          pip3 install --break-system-packages --ignore-installed \
+            "httpx>=0.27" \
+            "websockets>=12" \
+            "pydantic>=2.5" \
+            "pyyaml>=6" \
+            "pytest>=8" \
+            "pytest-asyncio>=0.23"
+
+      - name: Set up colcon workspace
+        run: |
+          mkdir -p ws/src
+          ln -s "$GITHUB_WORKSPACE/packages" ws/src/quiksync
+
+      - name: colcon build
+        run: |
+          cd ws
+          . /opt/ros/jazzy/setup.sh
+          colcon build --symlink-install --event-handlers console_direct+
+
+      - name: colcon test (with streaming output)
+        run: |
+          cd ws
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          # console_direct+ streams stdout/stderr as tests run so failures are
+          # visible even when the overall return code is non-zero. The `|| true`
+          # lets the test-result step below run and surface the JUnit XML.
+          colcon test --event-handlers console_direct+ --return-code-on-test-failure || RC=$?
+          # Always print per-package test-result summaries (also exits non-zero
+          # if the JUnit XMLs report failures — provides our final gate).
+          colcon test-result --verbose --all
+          # Propagate the colcon test exit code if it failed.
+          exit "${RC:-0}"
