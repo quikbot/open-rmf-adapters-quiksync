@@ -90,11 +90,24 @@ class FleetStatePump:
 
     async def _dispatch_frame(self, frame: dict) -> None:
         self._frames_seen += 1
-        robots = frame.get("robots") or []
-        if not isinstance(robots, list):
-            log.warning("FleetState frame.robots is not a list (got %s); skipping", type(robots).__name__)
+        robots = frame.get("robots")
+        # The Open-RMF FleetState schema specifies `robots` as a
+        # `{robotName → RobotState}` map. We also accept the array shape
+        # (`[RobotState, ...]`) for resilience against server variants
+        # that emit the older shape.
+        if isinstance(robots, dict):
+            robot_iter = list(robots.values())
+        elif isinstance(robots, list):
+            robot_iter = robots
+        elif robots is None:
+            robot_iter = []
+        else:
+            log.warning(
+                "FleetState frame.robots is neither map nor list (got %s); skipping",
+                type(robots).__name__,
+            )
             return
-        for robot in robots:
+        for robot in robot_iter:
             if not isinstance(robot, dict):
                 continue
             name = robot.get("name")

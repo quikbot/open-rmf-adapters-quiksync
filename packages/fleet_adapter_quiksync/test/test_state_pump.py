@@ -108,7 +108,65 @@ async def test_frame_with_non_list_robots_skipped(caplog):
     # Both frames were SEEN; only one had dispatchable content.
     assert pump.frames_seen() == 2
     assert pump.robots_dispatched() == 1
-    assert received == [("r1", received[0][1])]
+    assert len(received) == 1
+    assert received[0][0] == "r1"
+
+
+@pytest.mark.asyncio
+async def test_dispatches_robots_when_field_is_map():
+    """Open-RMF's FleetState schema spells `robots` as
+    `{robotName: RobotState}` (a map). Earlier versions of the pump
+    accepted only the list shape and silently dropped every frame from
+    a schema-conformant server."""
+    received: list[tuple[str, dict]] = []
+
+    async def cb(name: str, state: dict) -> None:
+        received.append((name, state))
+
+    frames = [
+        {
+            "name": "service_robots",
+            "robots": {
+                "robot-1": robot("robot-1"),
+                "robot-2": robot("robot-2", battery_percent=33.0),
+            },
+        },
+    ]
+    pump = FleetStatePump(FakeWsClient(frames), "service_robots", cb)
+    await pump.start()
+    await asyncio.sleep(0.05)
+    await pump.stop()
+
+    assert pump.frames_seen() == 1
+    assert pump.robots_dispatched() == 2
+    names = sorted(name for name, _ in received)
+    assert names == ["robot-1", "robot-2"]
+    by_name = {name: state for name, state in received}
+    assert by_name["robot-2"]["battery_percent"] == 33.0
+
+
+@pytest.mark.asyncio
+async def test_dispatches_robots_when_field_missing_or_null():
+    """`robots: null` and a missing `robots` key both flow through as
+    zero dispatchable robots — the frame is counted but no callback
+    fires."""
+    received: list[tuple[str, dict]] = []
+
+    async def cb(name: str, state: dict) -> None:
+        received.append((name, state))
+
+    frames = [
+        {"name": "f", "robots": None},
+        {"name": "f"},  # robots key absent entirely
+    ]
+    pump = FleetStatePump(FakeWsClient(frames), "service_robots", cb)
+    await pump.start()
+    await asyncio.sleep(0.05)
+    await pump.stop()
+
+    assert pump.frames_seen() == 2
+    assert pump.robots_dispatched() == 0
+    assert received == []
 
 
 @pytest.mark.asyncio
