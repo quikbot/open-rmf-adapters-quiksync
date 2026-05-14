@@ -19,6 +19,8 @@ The QuikSync Open-RMF Connector exposes a stable HTTP + WSS surface for Open-RMF
 
 This repo packages three Python adapters that drive that surface from a customer's ROS 2 + `rmf_ros2` deployment. There is one adapter process per role — fleet, door, lift — each consuming a config file with the QuikSync endpoint, Auth0 credentials, and the resource identity (`fleet_name` / `door_name` / `lift_name`) to register.
 
+**Fleet configuration follows the standard Open-RMF YAML pattern by default** — the same `rmf_fleet:` schema [`fleet_adapter_template`](https://github.com/open-rmf/fleet_adapter_template) defines, parsed via `FleetConfiguration.from_config_files`. A dynamic mode is available as opt-in for deployments that prefer to let the QuikSync Open-RMF Connector drive the fleet shape from its catalogue (`/discovery` + `/building_map`) instead of maintaining YAML in sync. See [Configuration](#configuration) for both modes.
+
 ### Architecture
 
 ```mermaid
@@ -52,29 +54,41 @@ sequenceDiagram
   participant RMF as Open-RMF<br/>planner
   participant FA as fleet_adapter<br/>_quiksync
   participant Srv as QuikSync<br/>Open-RMF Connector
+  participant QS as QuikSync<br/>platform
   participant Bot as Vendor robot
 
   RMF->>FA: navigate(destination, execution)
   Note over FA: callbacks.py extracts<br/>(map, x, y, yaw, dock)<br/>generates execution_id (uuid)
   FA->>Srv: POST /navigate<br/>(execution_id, destination, dock_name?)
   Srv-->>FA: 202 {task_id, status:"queued"}
-  Srv->>Bot: dispatch MOVE
+  Srv->>QS: hand off request
+  Note over QS: platform-internal<br/>scheduling + dispatch
+  QS->>Bot: vendor-specific command
   Note over FA: handle.set_current_activity<br/>(execution.identifier)
 
   loop while task running (1–5 Hz)
-    Bot-->>Srv: pose update
+    Bot-->>QS: telemetry
+    QS-->>Srv: normalised FleetState
     Srv-->>FA: WSS FleetState frame
     Note over FA: state_pump → robot_handle<br/>JSON → rmf_adapter.RobotState
     FA->>RMF: EasyRobotUpdateHandle.update<br/>(state, current_activity)
   end
 
-  Bot-->>Srv: arrived
+  Bot-->>QS: arrived
+  QS-->>Srv: terminal FleetState
   Srv-->>FA: WSS FleetState (task_id=null)
   FA->>RMF: update(state, current_activity=None)
   Note over RMF: task completed
 ```
 
-`stop()` and `action_executor()` follow the same outbound shape (POST + idempotent on `execution_id`); state-side correlation via the WSS stream is identical.
+The QuikSync platform's internal scheduling, vendor-adapter selection,
+and command translation are out of scope for this diagram (and for
+this repo). The Connector is the only QuikSync surface the adapter
+talks to; everything past it is platform-internal.
+
+`stop()` and `action_executor()` follow the same outbound shape (POST
++ idempotent on `execution_id`); state-side correlation via the WSS
+stream is identical.
 
 ## Packages
 
@@ -180,7 +194,7 @@ quiksync:
 | `auth0_client_secret` | string | yes\* | M2M client secret. **Prefer `auth0_client_secret_file`** below in production. |
 | `auth0_client_secret_file` | path | — | Path to a file containing the M2M client secret (Docker secret mount, k8s `Secret`, Vault projection, etc.). |
 | `auth0_organization` | string | yes | Auth0 organisation ID (`org_xxxxx`) for your tenant. |
-| `fleet_name` | string | yes | Fleet identifier to register. Must match `rmf_fleet.name` (YAML mode) and a fleet visible via `/discovery` (both modes). |
+| `fleet_name` | string | yes | Fleet identifier to register. Must equal `rmf_fleet.name` (YAML mode) — enforced at config-load — and must match a fleet visible via `/discovery` (both modes). |
 | `update_interval_seconds` | float | — | `EasyRobotUpdateHandle.update()` cadence per robot. Default `0.5`. |
 | `state_subscribe_reconnect_seconds` | float | — | Base backoff after a WSS disconnect. Default `1.0` (jittered exponential ramp, capped at 30s). |
 

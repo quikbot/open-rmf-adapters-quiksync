@@ -89,6 +89,36 @@ def test_from_yaml_nested_with_dynamic_mode_true_no_rmf_fleet_block_required(tmp
     assert cfg.dynamic_mode is True
 
 
+def test_from_yaml_fleet_name_mismatch_raises(tmp_path: Path):
+    """When both blocks exist, rmf_fleet.name must equal quiksync.fleet_name."""
+    quiksync_block = "\n".join(f"  {k}: {v}" for k, v in REQUIRED.items())
+    yaml_text = (
+        "rmf_fleet:\n"
+        "  name: serviceRobotsTYPO\n"   # diverges from quiksync.fleet_name below
+        "quiksync:\n"
+        + quiksync_block + "\n"
+    )
+    cfg_file = tmp_path / "fleet.yaml"
+    cfg_file.write_text(yaml_text)
+    with pytest.raises(ConfigError, match="fleet identifier mismatch"):
+        FleetAdapterConfig.from_yaml(cfg_file)
+
+
+def test_from_yaml_fleet_name_matching_ok(tmp_path: Path):
+    """Matching names parse cleanly."""
+    quiksync_block = "\n".join(f"  {k}: {v}" for k, v in REQUIRED.items())
+    yaml_text = (
+        f"rmf_fleet:\n"
+        f"  name: {REQUIRED['fleet_name']}\n"
+        f"quiksync:\n"
+        + quiksync_block + "\n"
+    )
+    cfg_file = tmp_path / "fleet.yaml"
+    cfg_file.write_text(yaml_text)
+    cfg = FleetAdapterConfig.from_yaml(cfg_file)
+    assert cfg.fleet_name == REQUIRED["fleet_name"]
+
+
 def test_from_yaml_nested_missing_rmf_fleet_with_dynamic_false_raises(tmp_path: Path):
     """When dynamic_mode is false (default), `rmf_fleet:` block must
     be present alongside `quiksync:`."""

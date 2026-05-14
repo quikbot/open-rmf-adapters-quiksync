@@ -99,6 +99,34 @@ def find_our_fleet(discovery: dict[str, Any], fleet_name: str) -> Optional[dict[
     return None
 
 
+def _fetch_fleet_entry(
+    http: QuikSyncHttpClient,
+    fleet_name: str,
+) -> tuple[Optional[dict[str, Any]], Optional[int]]:
+    """Fetch /discovery + locate our fleet entry, with consistent error
+    reporting. Returns ``(fleet_entry, exit_code)`` where exactly one
+    side is ``None``: on success ``(entry, None)``; on failure
+    ``(None, exit_code)`` matching `main()`'s documented exit-code
+    contract (3 = discovery fetch failed; 4 = fleet not found).
+    """
+    try:
+        discovery = http.get_discovery()
+    except Exception as e:  # noqa: BLE001
+        log.error("discovery fetch failed: %s", e)
+        return None, 3
+
+    fleet_entry = find_our_fleet(discovery, fleet_name)
+    if fleet_entry is None:
+        available = [
+            f.get("fleet_name") for f in (discovery.get("fleets") or [])
+            if isinstance(f, dict)
+        ]
+        log.error("fleet %r not found in discovery; available=%s", fleet_name, available)
+        return None, 4
+
+    return fleet_entry, None
+
+
 def build_robot_handles(fleet_entry: dict[str, Any]) -> dict[str, RobotHandle]:
     """One RobotHandle per robot listed in the fleet entry."""
     handles: dict[str, RobotHandle] = {}
@@ -199,57 +227,31 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     auth, http, ws = build_clients(config)
 
-    # Dynamic mode pre-flight: fetch /discovery + locate our fleet. YAML
-    # mode skips this; the fleet shape is in the YAML's `rmf_fleet:` block.
-    fleet_entry: Optional[dict[str, Any]] = None
-    handles: dict[str, RobotHandle] = {}
-    if config.dynamic_mode:
-        try:
-            discovery = http.get_discovery()
-        except Exception as e:  # noqa: BLE001
-            log.error("discovery fetch failed: %s", e)
-            auth.close()
-            http.close()
-            return 3
-
-        fleet_entry = find_our_fleet(discovery, config.fleet_name)
-        if fleet_entry is None:
-            available = [
-                f.get("fleet_name") for f in (discovery.get("fleets") or [])
-                if isinstance(f, dict)
-            ]
-            log.error(
-                "fleet %r not found in discovery; available=%s",
-                config.fleet_name, available,
-            )
-            auth.close()
-            http.close()
-            return 4
-
-        handles = build_robot_handles(fleet_entry)
-        log.info("registered %d robots locally (dynamic mode): %s", len(handles), sorted(handles))
-
     rmf_adapter = _try_import_rmf_adapter()
     dry_run = args.dry_run or rmf_adapter is None
 
-    # Dry-run requires fleet_entry (it drains a few WSS frames against
-    # the discovered fleet). If the operator triggered dry-run in YAML
-    # mode, fetch discovery now just for the dry-run pre-flight.
-    if dry_run and fleet_entry is None:
-        try:
-            discovery = http.get_discovery()
-        except Exception as e:  # noqa: BLE001
-            log.error("dry-run discovery fetch failed: %s", e)
+    # Fleet entry from /discovery is required for:
+    # - dynamic mode (drives FleetConfiguration construction in-memory)
+    # - any dry-run (used to build RobotHandles + drain WSS frames)
+    # YAML-mode + non-dry-run skips discovery; the fleet shape comes from
+    # the YAML's `rmf_fleet:` block instead.
+    needs_discovery = config.dynamic_mode or dry_run
+    fleet_entry: Optional[dict[str, Any]] = None
+    handles: dict[str, RobotHandle] = {}
+    if needs_discovery:
+        fleet_entry, exit_code = _fetch_fleet_entry(http, config.fleet_name)
+        if exit_code is not None:
             auth.close()
             http.close()
-            return 3
-        fleet_entry = find_our_fleet(discovery, config.fleet_name)
-        if fleet_entry is None:
-            log.error("dry-run: fleet %r not found in discovery", config.fleet_name)
-            auth.close()
-            http.close()
-            return 4
+            return exit_code
+        assert fleet_entry is not None  # _fetch_fleet_entry contract
         handles = build_robot_handles(fleet_entry)
+        log.info(
+            "registered %d robots locally (%s): %s",
+            len(handles),
+            "dynamic mode" if config.dynamic_mode else "dry-run pre-flight",
+            sorted(handles),
+        )
 
     try:
         if dry_run:
