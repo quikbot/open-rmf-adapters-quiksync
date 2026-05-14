@@ -1,0 +1,3 @@
+# Default owners — every PR requires approval from at least one of these
+# accounts (see Settings → Branches → main → "Require review from Code Owners").
+*       @ren-diao-quikbot
