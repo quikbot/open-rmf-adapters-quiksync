@@ -20,14 +20,25 @@ jobs:
       - name: Install python deps not in apt
         run: |
           apt-get update
-          # Don't install python3-pytest from apt: its pluggy 1.4 conflicts
+          # Keep this list in sync with docker/Dockerfile — same pinning
+          # rationale (rosdep installs apt-managed older versions of
+          # httpx / websockets / pydantic that satisfy setup.py
+          # install_requires but lag the pins we want; --ignore-installed
+          # forces upgrade).
+          #
+          # httpx[socks] + python-socks for SOCKS proxy support — irrelevant
+          # on GitHub runners but kept aligned with the image so customer
+          # ops following the smoke runbook get the same dep set.
+          #
+          # python3-pytest separately because its apt pluggy 1.4 conflicts
           # with pytest-asyncio 1.3+ which requires pluggy 1.6+. Pip can't
-          # uninstall the apt-managed pluggy ("RECORD file not found"). Let
-          # pip own the entire pytest stack instead.
+          # uninstall the apt-managed pluggy ("RECORD file not found"), so
+          # pip owns the entire pytest stack.
           apt-get install -y python3-pip
           pip3 install --break-system-packages --ignore-installed \
-            "httpx>=0.27" \
+            "httpx[socks]>=0.27" \
             "websockets>=12" \
+            "python-socks" \
             "pydantic>=2.5" \
             "pyyaml>=6" \
             "pytest>=8" \

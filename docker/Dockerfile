@@ -29,12 +29,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-colcon-common-extensions \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps not available via rosdep (pip-managed for cleanness; see
-# .github/workflows/build.yml for the same rationale — apt pluggy vs
-# pip pluggy conflict).
+# Runtime Python deps. These appear duplicated against each package's
+# setup.py install_requires + the package.xml rosdep entries — that is
+# intentional, not redundant:
+#
+# - rosdep on the ros:jazzy-ros-base image installs apt-managed
+#   python3-httpx / python3-websockets / python3-pydantic versions,
+#   which are older than what we pin.
+# - setup.py install_requires is satisfied by those apt versions
+#   ("any version >= 0.27" matches apt's older 0.27.x), so colcon's
+#   install pass alone wouldn't upgrade us.
+# - This pip-install with --ignore-installed forces the pinned versions
+#   to take precedence.
+#
+# httpx[socks] + python-socks handle SOCKS proxy environments
+# (ALL_PROXY=socks5://...). Without them WSS connect fails with
+# "connecting through a SOCKS proxy requires python-socks". Negligible
+# image-size cost; safe to ship by default.
+#
+# Keep this list in sync with the .github/workflows/build.yml step that
+# does the same install — they exist for the same reason.
 RUN pip3 install --break-system-packages --ignore-installed \
-        "httpx>=0.27" \
+        "httpx[socks]>=0.27" \
         "websockets>=12" \
+        "python-socks" \
         "pydantic>=2.5" \
         "pyyaml>=6"
 
@@ -52,13 +70,15 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 # ============================================================================
 FROM ros:${ROS_DISTRO}-ros-base AS runtime
 
-# Runtime-only Python deps (same pip stack as builder)
+# Runtime-only Python deps. Same pip stack as builder for the same
+# reasons (see the builder-stage comment above for rationale).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-pip \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --break-system-packages --ignore-installed \
-        "httpx>=0.27" \
+        "httpx[socks]>=0.27" \
         "websockets>=12" \
+        "python-socks" \
         "pydantic>=2.5" \
         "pyyaml>=6"
 

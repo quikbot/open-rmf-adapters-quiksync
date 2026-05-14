@@ -19,9 +19,12 @@ Run this whenever:
    with a valid M2M token — it should return a non-empty `fleets[]`
    array.
 2. **An Auth0 M2M client** minted for your test customer org, with the
-   audience `https://<your-quiksync-api-audience>/open-rmf` and scopes
+   audience `https://<your-quiksync-api-audience>` and scopes
    `open-rmf:read open-rmf:invoke`. QuikSync ops provisions these
-   per-customer.
+   per-customer. The audience is the **standard QuikSync API audience**
+   shared with all other platform scopes — open-rmf access is granted
+   via the two scopes above on that same audience, not via a separate
+   per-service audience.
 3. **A registered fleet** in the staging tenant. The fleet name must
    match what you pass via `FLEET_ADAPTER_FLEET_NAME`. At least one
    robot must be online so `FleetState` frames flow.
@@ -42,12 +45,12 @@ Open-RMF stack. Run from any host (laptop, dev box, CI).
 ```bash
 # From a checkout of this repo:
 docker build -t open-rmf-adapters-quiksync:smoke \
-    -f docker/fleet_adapter_quiksync/Dockerfile .
+    -f docker/Dockerfile .
 
 docker run --rm \
     -e FLEET_ADAPTER_BASE_URL=https://<your-quiksync-staging-host> \
     -e FLEET_ADAPTER_AUTH0_TENANT=<your-auth0-tenant>.auth0.com \
-    -e FLEET_ADAPTER_AUTH0_AUDIENCE=https://<your-quiksync-api-audience>/open-rmf \
+    -e FLEET_ADAPTER_AUTH0_AUDIENCE=https://<your-quiksync-api-audience> \
     -e FLEET_ADAPTER_AUTH0_CLIENT_ID="$ADAPTER_CLIENT_ID" \
     -e FLEET_ADAPTER_AUTH0_CLIENT_SECRET="$ADAPTER_CLIENT_SECRET" \
     -e FLEET_ADAPTER_AUTH0_ORGANIZATION="$ADAPTER_ORG_ID" \
@@ -55,6 +58,16 @@ docker run --rm \
     open-rmf-adapters-quiksync:smoke \
     python -m fleet_adapter_quiksync.adapter --dry-run
 ```
+
+> **SOCKS proxy environments**: if the host has `ALL_PROXY` /
+> `HTTPS_PROXY` set to a `socks5://` URL (common on dev laptops
+> behind VPN tools), both the docker image and any `pip install -e`
+> path need the SOCKS shims. The docker image ships
+> `httpx[socks]` + `python-socks` by default; for a non-docker
+> `pip install -e`, run `pip install 'httpx[socks]' python-socks`
+> manually. Without them, you'll see
+> `ImportError: Using SOCKS proxy, but the 'socksio' package is not installed`
+> on the first HTTPS call.
 
 **Expected exit code:** `0` if at least one WSS state frame arrived
 within 3 seconds. **Expected log lines:**
