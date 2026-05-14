@@ -13,6 +13,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + PACKAGE_NAME]),
         (os.path.join("share", PACKAGE_NAME), ["package.xml"]),
         (os.path.join("share", PACKAGE_NAME, "config"), glob("config/*.example")),
+        (os.path.join("share", PACKAGE_NAME, "launch"), glob("launch/*.launch.xml")),
     ],
     install_requires=[
         "setuptools",
@@ -22,7 +23,7 @@ setup(
     zip_safe=True,
     maintainer="QuikBot",
     maintainer_email="tech@quikbot.ai",
-    description="QuikSync Open-RMF lift adapter — v1 stub; real implementation lands in v2.",
+    description="QuikSync Open-RMF lift adapter — bridges QuikSync-managed lifts to a customer Open-RMF deployment.",
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
