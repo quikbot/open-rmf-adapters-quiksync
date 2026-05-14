@@ -218,3 +218,161 @@ def test_post_perform_action_omits_deadline_when_unset(monkeypatch):
         }
     finally:
         client.close()
+
+
+# ----- Door endpoints -----
+
+
+def test_get_door_state_path_and_method(monkeypatch):
+    captured: list[tuple[str, str]] = []
+
+    def fake_request(self, method, path, headers=None, json=None):
+        captured.append((method, path))
+        return httpx.Response(status_code=200, json={
+            "door_name": "door_alpha", "door_time": 1234,
+            "current_mode": {"value": 2},
+        })
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    config = HttpConfig(base_url="https://example.test", max_retries=0)
+    client = QuikSyncHttpClient(config, make_auth())
+    try:
+        payload = client.get_door_state("door_alpha")
+        assert captured == [("GET", "/api/v1/connector/open-rmf/doors/door_alpha/state")]
+        assert payload["current_mode"]["value"] == 2
+    finally:
+        client.close()
+
+
+def test_post_door_request_body_and_method(monkeypatch):
+    captured: list[tuple[str, str, dict]] = []
+
+    def fake_request(self, method, path, headers=None, json=None):
+        captured.append((method, path, json or {}))
+        return httpx.Response(status_code=202, json={"status": "queued"})
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    config = HttpConfig(base_url="https://example.test", max_retries=0)
+    client = QuikSyncHttpClient(config, make_auth())
+    try:
+        client.post_door_request(
+            door="door_alpha",
+            requester_id="rmf:robot-1",
+            requested_mode="OPEN",
+            execution_id="exec-1",
+        )
+        method, path, body = captured[0]
+        assert method == "POST"
+        assert path == "/api/v1/connector/open-rmf/doors/door_alpha/request"
+        assert body == {
+            "requester_id": "rmf:robot-1",
+            "requested_mode": "OPEN",
+            "execution_id": "exec-1",
+        }
+    finally:
+        client.close()
+
+
+# ----- Lift endpoints -----
+
+
+def test_get_lift_state_path_and_method(monkeypatch):
+    captured: list[tuple[str, str]] = []
+
+    def fake_request(self, method, path, headers=None, json=None):
+        captured.append((method, path))
+        return httpx.Response(status_code=200, json={
+            "lift_name": "lift_alpha", "lift_time": 1234,
+            "current_floor": "L1", "destination_floor": "",
+            "door_state": 0, "motion_state": 0,
+            "available_modes": [{"value": 2}, {"value": 4}],
+            "current_mode": {"value": 2}, "session_id": "",
+        })
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    config = HttpConfig(base_url="https://example.test", max_retries=0)
+    client = QuikSyncHttpClient(config, make_auth())
+    try:
+        payload = client.get_lift_state("lift_alpha")
+        assert captured == [("GET", "/api/v1/connector/open-rmf/lifts/lift_alpha/state")]
+        assert payload["current_mode"]["value"] == 2
+    finally:
+        client.close()
+
+
+def test_post_lift_request_body_and_method(monkeypatch):
+    captured: list[tuple[str, str, dict]] = []
+
+    def fake_request(self, method, path, headers=None, json=None):
+        captured.append((method, path, json or {}))
+        return httpx.Response(status_code=202, json={"status": "queued"})
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    config = HttpConfig(base_url="https://example.test", max_retries=0)
+    client = QuikSyncHttpClient(config, make_auth())
+    try:
+        client.post_lift_request(
+            lift="lift_alpha",
+            session_id="rmf:robot-1",
+            request_type="AGV_MODE",
+            destination_floor="L3",
+            door_state="OPEN",
+            execution_id="exec-1",
+        )
+        method, path, body = captured[0]
+        assert method == "POST"
+        assert path == "/api/v1/connector/open-rmf/lifts/lift_alpha/request"
+        assert body == {
+            "session_id": "rmf:robot-1",
+            "request_type": "AGV_MODE",
+            "destination_floor": "L3",
+            "door_state": "OPEN",
+            "execution_id": "exec-1",
+        }
+    finally:
+        client.close()
+
+
+def test_delete_lift_session_path_and_method(monkeypatch):
+    captured: list[tuple[str, str]] = []
+
+    def fake_request(self, method, path, headers=None, json=None):
+        captured.append((method, path))
+        return httpx.Response(status_code=200, json={"status": "cleared"})
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    config = HttpConfig(base_url="https://example.test", max_retries=0)
+    client = QuikSyncHttpClient(config, make_auth())
+    try:
+        client.delete_lift_session("lift_alpha")
+        assert captured == [("DELETE", "/api/v1/connector/open-rmf/lifts/lift_alpha/session")]
+    finally:
+        client.close()
+
+
+def test_post_lift_request_409_surfaces_holding_session(monkeypatch):
+    """When AGV_MODE conflicts on the server side, 409 surfaces with
+    holding_session_id; the http client raises a client error with the
+    full payload."""
+    response = httpx.Response(status_code=409, json={
+        "error": "lift_session_held",
+        "holding_session_id": "rmf:robot-2",
+    })
+
+    def fake_request(self, method, path, headers=None, json=None):
+        return response
+
+    monkeypatch.setattr(httpx.Client, "request", fake_request)
+    config = HttpConfig(base_url="https://example.test", max_retries=0)
+    client = QuikSyncHttpClient(config, make_auth())
+    try:
+        with pytest.raises(QuikSyncClientError) as exc:
+            client.post_lift_request(
+                lift="lift_alpha", session_id="rmf:robot-1",
+                request_type="AGV_MODE", destination_floor="L3",
+                door_state="OPEN", execution_id="exec-1",
+            )
+        assert exc.value.status == 409
+        assert exc.value.body["holding_session_id"] == "rmf:robot-2"
+    finally:
+        client.close()

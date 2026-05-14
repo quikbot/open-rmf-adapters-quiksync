@@ -178,6 +178,65 @@ class QuikSyncHttpClient:
             },
         )
 
+    # ----- Lift endpoints -----
+
+    def get_lift_state(self, lift: str) -> dict[str, Any]:
+        """Single-shot lift-state read. WSS subscribe is the steady-
+        state path; this is for cold-start / smoke / health probes.
+
+        `lift` is the raw lift_name as discovered; URL-encoding is
+        handled by httpx.
+        """
+        return self._request_json(
+            "GET", f"/api/v1/connector/open-rmf/lifts/{lift}/state",
+        )
+
+    def post_lift_request(
+        self,
+        lift: str,
+        session_id: str,
+        request_type: str,
+        destination_floor: str,
+        door_state: str,
+        execution_id: str,
+    ) -> dict[str, Any]:
+        """Forward an Open-RMF `LiftRequest` to the QuikSync server.
+
+        - `request_type` must be one of `"END_SESSION"`, `"AGV_MODE"`,
+          `"HUMAN_MODE"`. NO_REQUEST is the rmf-side no-op sentinel and
+          must NOT reach this method — the caller short-circuits earlier.
+        - `door_state` must be `"OPEN"` or `"CLOSED"`; the server
+          rejects `"MOVING"` with 400 `invalid_door_state`.
+        - `AGV_MODE` requests attempt to acquire the lift's session
+          lock; if held by another `session_id` the server returns 409
+          with a `holding_session_id` field echoing the current holder.
+
+        Idempotency: repeated calls with the same `execution_id` are
+        server-side-deduped.
+        """
+        return self._request_json(
+            "POST", f"/api/v1/connector/open-rmf/lifts/{lift}/request",
+            body={
+                "session_id": session_id,
+                "request_type": request_type,
+                "destination_floor": destination_floor,
+                "door_state": door_state,
+                "execution_id": execution_id,
+            },
+        )
+
+    def delete_lift_session(self, lift: str) -> dict[str, Any]:
+        """Admin force-clear the lift's session lock.
+
+        Requires the `open-rmf:invoke` scope on the M2M token. Used to
+        recover from a stuck session on the server side (e.g. a fleet
+        crashed mid-session and never sent END_SESSION). Emits
+        `platform.open_rmf.lift.session_force_cleared` server-side.
+        """
+        return self._request_json(
+            "DELETE", f"/api/v1/connector/open-rmf/lifts/{lift}/session",
+        )
+
     # ----- Core request loop -----
 
     def _request_json(
