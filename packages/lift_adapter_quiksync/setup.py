@@ -1,3 +1,6 @@
+import os
+from glob import glob
+
 from setuptools import find_packages, setup
 
 PACKAGE_NAME = "lift_adapter_quiksync"
@@ -7,12 +10,14 @@ setup(
     version="0.1.1",  # x-release-please-version
     packages=find_packages(exclude=["test"]),
     data_files=[
-        ("share/ament_index/resource_index/packages", ["resource/lift_adapter_quiksync"]),
-        ("share/lift_adapter_quiksync", ["package.xml"]),
+        ("share/ament_index/resource_index/packages", ["resource/" + PACKAGE_NAME]),
+        (os.path.join("share", PACKAGE_NAME), ["package.xml"]),
+        (os.path.join("share", PACKAGE_NAME, "config"), glob("config/*.example")),
     ],
     install_requires=[
         "setuptools",
         "quiksync_client",
+        "pyyaml>=6",
     ],
     zip_safe=True,
     maintainer="QuikBot",

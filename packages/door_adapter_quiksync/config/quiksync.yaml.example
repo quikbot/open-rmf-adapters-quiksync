@@ -1,0 +1,39 @@
+# door_adapter_quiksync — config template
+#
+# A single top-level `quiksync:` block carries Auth0 + endpoint wiring
+# and the list of doors this adapter instance owns.
+#
+# Copy to a customer-side path (e.g. /etc/quiksync/door.yaml) and fill in
+# the placeholder values from the M2M client provisioned by QuikSync
+# ops. The Auth0 client_secret is best provisioned via Docker secret
+# mount; reference it via `auth0_client_secret_file` instead of inlining.
+#
+# Then launch with:
+#
+#   ros2 launch door_adapter_quiksync door_adapter_quiksync.launch.xml \
+#     config:=/etc/quiksync/door.yaml
+
+quiksync:
+  # QuikSync HTTPS endpoint
+  base_url: https://<your-quiksync-host>
+
+  # Auth0 M2M client (provisioned per customer at onboarding)
+  auth0_tenant: <your-auth0-tenant>.auth0.com
+  auth0_audience: https://<your-quiksync-api-audience>/open-rmf
+  auth0_client_id: <m2m-client-id-from-quiksync-ops>
+  auth0_client_secret_file: /run/secrets/quiksync_adapter_credentials
+  auth0_organization: <auth0-org-id>
+
+  # Doors this adapter owns. Each ID must match a door declared in your
+  # QuikSync tenant and in your rmf `building_map.yaml`. One rclpy node
+  # manages all doors listed here.
+  doors:
+    - door_alpha
+    - door_beta
+
+  # Optional tuning knobs
+  state_subscribe_reconnect_seconds: 1.0
+
+  # Optional ROS topic remaps. Defaults match the rmf community convention.
+  # door_states_topic: door_states
+  # door_requests_topic: door_requests
