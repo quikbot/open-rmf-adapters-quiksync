@@ -113,7 +113,27 @@ graphical works, and any other content in this repository.
 - Conventional Commits subject line: `<type>(<scope>): <description>`.
 - Open the PR against `main`. Fill in the PR body with what changed +
   test plan + generative-AI disclosure (if applicable).
-- CI (`build`) must pass before merge. Squash-merge is the default.
+- Squash-merge is the default merge method.
+
+## Review process
+
+The `main` branch is protected by a repository ruleset. To merge a PR you need:
+
+1. **CI green** — the `colcon build + test` workflow must pass.
+2. **One approving review from a code owner.** Code owners are listed in
+   [`.github/CODEOWNERS`](.github/CODEOWNERS); GitHub auto-requests review
+   from them when a PR touches files they own.
+3. **Signed commits.** Every commit on the PR branch must be signed (GPG
+   or SSH). See [GitHub's guide on commit signing](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification).
+4. **DCO sign-off** on every commit (`Signed-off-by:` trailer, see above).
+5. **Generative-AI disclosure** on every commit that used one
+   (`Generated-by:` trailer, see above).
+6. **All review threads resolved** before merging.
+
+Force pushes to `main` and branch deletion are blocked. The ruleset is
+enforced for all contributors; the project owner may bypass the review
+requirement when no second maintainer is available, but CI + signing +
+DCO requirements are non-negotiable.
 
 ## Testing
 
