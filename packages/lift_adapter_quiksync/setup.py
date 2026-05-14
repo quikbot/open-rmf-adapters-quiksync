@@ -4,7 +4,7 @@ PACKAGE_NAME = "lift_adapter_quiksync"
 
 setup(
     name=PACKAGE_NAME,
-    version="0.1.0",  # x-release-please-version
+    version="0.1.1",  # x-release-please-version
     packages=find_packages(exclude=["test"]),
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/lift_adapter_quiksync"]),

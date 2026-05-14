@@ -22,7 +22,7 @@ from .http import (
 )
 from .ws import QuikSyncWsClient, WsCircuitOpen, WsConfig
 
-__version__ = "0.1.0"  # x-release-please-version
+__version__ = "0.1.1"  # x-release-please-version
 
 __all__ = [
     "Auth0M2MClient",

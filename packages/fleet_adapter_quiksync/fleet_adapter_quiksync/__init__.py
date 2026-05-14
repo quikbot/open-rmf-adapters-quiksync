@@ -14,4 +14,4 @@ v1.0: implementation in progress. The package compiles + the entry-point
 runs; full implementation lands in subsequent commits per the v1 plan.
 """
 
-__version__ = "0.1.0"  # x-release-please-version
+__version__ = "0.1.1"  # x-release-please-version

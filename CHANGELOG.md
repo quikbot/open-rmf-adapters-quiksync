@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.1.0...v0.1.1) (2026-05-14)
+
+
+### Features
+
+* **fleet_adapter_quiksync:** YAML-driven default config + opt-in dynamic mode ([#2](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/2)) ([c033367](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/c033367aa5bf176b5c286ebfc70a7cae21a662d9))
+
 ## 0.1.0 (2026-05-14)
 
 Initial release.
