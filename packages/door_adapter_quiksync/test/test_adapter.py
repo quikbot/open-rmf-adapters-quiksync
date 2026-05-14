@@ -39,15 +39,48 @@ def make_config() -> DoorAdapterConfig:
 
 
 # ----- lazy imports -----
+#
+# `rclpy` IS available in CI's ros:jazzy-ros-base image; `rmf_door_msgs`
+# is NOT (it's part of rmf_internal_msgs, only in the full rmf_ros2 stack).
+# So we can't assert "returns None in CI" for rclpy. Instead, test that
+# the helpers degrade cleanly when the import genuinely fails (simulated
+# via builtins.__import__ monkeypatching).
 
 
-def test_try_import_rclpy_returns_none_in_ci():
-    """rclpy is not installed in CI → None, no exception raised."""
+def test_try_import_rclpy_returns_none_when_import_fails(monkeypatch):
+    """The helper must swallow ImportError, log, and return None — the
+    full-mode path then falls through to dry-run."""
+    import builtins
+    real_import = builtins.__import__
+
+    def faulty_import(name, *args, **kwargs):
+        if name == "rclpy":
+            raise ImportError("synthetic: rclpy unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", faulty_import)
     assert _try_import_rclpy() is None
 
 
 def test_try_import_door_msgs_returns_none_in_ci():
-    """rmf_door_msgs is not installed in CI → None, no exception raised."""
+    """rmf_door_msgs is not in ros:jazzy-ros-base (only in the full
+    rmf_ros2 stack), so the import genuinely fails in CI → None."""
+    assert _try_import_door_msgs() is None
+
+
+def test_try_import_door_msgs_returns_none_when_import_fails(monkeypatch):
+    """Belt + suspenders for environments where rmf_door_msgs IS on
+    PATH (e.g. local dev with rmf_ros2 sourced) — simulate the missing
+    import and verify the helper still degrades cleanly."""
+    import builtins
+    real_import = builtins.__import__
+
+    def faulty_import(name, *args, **kwargs):
+        if name == "rmf_door_msgs.msg":
+            raise ImportError("synthetic: rmf_door_msgs unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", faulty_import)
     assert _try_import_door_msgs() is None
 
 
