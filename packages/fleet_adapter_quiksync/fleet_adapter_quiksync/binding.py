@@ -217,7 +217,7 @@ def bind_from_yaml(
     config_path: str,
     nav_graph_path: str,
     http: QuikSyncHttpClient,
-    handles: dict[str, "RobotHandle"],
+    handles: dict[str, RobotHandle],
     fleet_name: str,
     node_name: str = "fleet_adapter_quiksync",
     server_uri: Optional[str] = None,
@@ -277,8 +277,7 @@ def bind_from_yaml(
         # (env-driven invocations don't know the robot list ahead of time).
         handle = handles.get(robot_name)
         if handle is None:
-            from .robot_handle import RobotHandle as _RobotHandle  # local import avoids cycle
-            handle = _RobotHandle(robot_name)
+            handle = RobotHandle(robot_name)
             handles[robot_name] = handle
 
         robot_config = fleet_config.get_known_robot_configuration(robot_name)

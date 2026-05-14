@@ -57,7 +57,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -112,19 +112,37 @@ class FleetAdapterConfig:
         # document as flat.
         if "quiksync" in data and isinstance(data["quiksync"], dict):
             quiksync_block = data["quiksync"]
+            rmf_fleet_block = data.get("rmf_fleet")
+
             # If the YAML has no `rmf_fleet:` block, dynamic_mode is the
             # only viable mode regardless of what the operator set — they
             # have nothing to feed `from_config_files`. Surface a clear
             # error rather than silently flipping the mode.
-            if (
-                not quiksync_block.get("dynamic_mode", False)
-                and "rmf_fleet" not in data
-            ):
+            if not quiksync_block.get("dynamic_mode", False) and rmf_fleet_block is None:
                 raise ConfigError(
                     "YAML mode (dynamic_mode=false) requires an `rmf_fleet:` block "
                     "alongside `quiksync:` in the config file. Either add the "
                     "block or set `quiksync.dynamic_mode: true`."
                 )
+
+            # When both blocks exist, the fleet identifier must match
+            # across them — a typo here would otherwise produce a
+            # confusing failure where the adapter registers a fleet
+            # under one name while logging another.
+            if isinstance(rmf_fleet_block, dict):
+                rmf_name = rmf_fleet_block.get("name")
+                quiksync_name = quiksync_block.get("fleet_name")
+                if (
+                    isinstance(rmf_name, str)
+                    and isinstance(quiksync_name, str)
+                    and rmf_name != quiksync_name
+                ):
+                    raise ConfigError(
+                        f"fleet identifier mismatch: rmf_fleet.name={rmf_name!r} "
+                        f"vs quiksync.fleet_name={quiksync_name!r}. These must be "
+                        f"equal so the adapter registers the same fleet it subscribes to."
+                    )
+
             return cls.from_dict(quiksync_block)
 
         # Flat form — backward compat. Implies dynamic_mode since there's

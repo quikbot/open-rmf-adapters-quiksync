@@ -101,14 +101,16 @@ class _FakeFleetConfiguration:
     def get_known_robot_configuration(self, name: str) -> Any:
         return self._robot_configs.get(name)
 
+    # Set per-test via `monkeypatch.setattr(_FakeFleetConfiguration,
+    # "_next_config", <fake>)` — keeps test state explicit and
+    # auto-reverted at test teardown (vs. assigning the attribute
+    # directly, which leaks across tests under parallel runners).
+    _next_config: Any = None
+
     @classmethod
     def from_config_files(cls, config_path: str, nav_graph_path: str) -> "_FakeFleetConfiguration":
-        """Stand-in for `rmf_adapter.easy_full_control.FleetConfiguration.from_config_files`.
-
-        Test paths set `cls._next_config` before calling bind_from_yaml to
-        steer what gets returned. Reset between tests via the helper.
-        """
-        return cls._next_config  # type: ignore[attr-defined]
+        """Stand-in for `rmf_adapter.easy_full_control.FleetConfiguration.from_config_files`."""
+        return cls._next_config
 
 
 
@@ -479,7 +481,7 @@ def _stub_yaml_fleet_config(robots: list[str]) -> _FakeFleetConfiguration:
     )
 
 
-def test_bind_from_yaml_calls_from_config_files_and_registers_robots(tmp_path):
+def test_bind_from_yaml_calls_from_config_files_and_registers_robots(monkeypatch, tmp_path):
     rmf = make_fake_rmf_adapter()
     http = MagicMock()
     handles: dict[str, Any] = {}
@@ -488,7 +490,10 @@ def test_bind_from_yaml_calls_from_config_files_and_registers_robots(tmp_path):
     config_path.write_text("rmf_fleet: {name: service_robots}\nquiksync: {}\n")
     nav_graph_path.write_text("levels: []\n")
 
-    _FakeFleetConfiguration._next_config = _stub_yaml_fleet_config(["robot-1", "robot-2"])
+    monkeypatch.setattr(
+        _FakeFleetConfiguration, "_next_config",
+        _stub_yaml_fleet_config(["robot-1", "robot-2"]),
+    )
 
     adapter, fleet_handle = bind_from_yaml(
         rmf_adapter=rmf,
@@ -511,14 +516,15 @@ def test_bind_from_yaml_calls_from_config_files_and_registers_robots(tmp_path):
     assert handles["robot-2"].is_bound()
 
 
-def test_bind_from_yaml_propagates_server_uri(tmp_path):
+def test_bind_from_yaml_propagates_server_uri(monkeypatch, tmp_path):
     rmf = make_fake_rmf_adapter()
     config_path = tmp_path / "fleet.yaml"
     nav_graph_path = tmp_path / "nav_graph.yaml"
     config_path.write_text("rmf_fleet: {}\nquiksync: {}\n")
     nav_graph_path.write_text("levels: []\n")
 
-    _FakeFleetConfiguration._next_config = _stub_yaml_fleet_config([])
+    fake_fc = _stub_yaml_fleet_config([])
+    monkeypatch.setattr(_FakeFleetConfiguration, "_next_config", fake_fc)
 
     bind_from_yaml(
         rmf_adapter=rmf,
@@ -530,8 +536,7 @@ def test_bind_from_yaml_propagates_server_uri(tmp_path):
         server_uri="ws://localhost:7878",
     )
 
-    fc = _FakeFleetConfiguration._next_config
-    assert fc.server_uri == "ws://localhost:7878"
+    assert fake_fc.server_uri == "ws://localhost:7878"
 
 
 def test_bind_from_yaml_requires_nav_graph_path():
@@ -560,14 +565,14 @@ def test_bind_from_yaml_requires_config_path():
         )
 
 
-def test_bind_from_yaml_raises_when_from_config_files_returns_none(tmp_path):
+def test_bind_from_yaml_raises_when_from_config_files_returns_none(monkeypatch, tmp_path):
     rmf = make_fake_rmf_adapter()
     config_path = tmp_path / "fleet.yaml"
     nav_graph_path = tmp_path / "nav_graph.yaml"
     config_path.write_text("")
     nav_graph_path.write_text("")
 
-    _FakeFleetConfiguration._next_config = None  # type: ignore[assignment]
+    monkeypatch.setattr(_FakeFleetConfiguration, "_next_config", None)
     with pytest.raises(BindingError, match="returned None"):
         bind_from_yaml(
             rmf_adapter=rmf,
