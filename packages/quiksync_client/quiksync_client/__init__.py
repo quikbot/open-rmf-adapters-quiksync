@@ -20,6 +20,7 @@ from .http import (
     QuikSyncServerError,
     HttpConfig,
 )
+from .time_conv import millis_to_time_parts
 from .ws import QuikSyncWsClient, WsCircuitOpen, WsConfig
 
 __version__ = "0.1.2"  # x-release-please-version
@@ -36,5 +37,6 @@ __all__ = [
     "QuikSyncWsClient",
     "WsCircuitOpen",
     "WsConfig",
+    "millis_to_time_parts",
     "__version__",
 ]

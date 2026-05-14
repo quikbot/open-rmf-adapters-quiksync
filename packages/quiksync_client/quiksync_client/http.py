@@ -142,6 +142,42 @@ class QuikSyncHttpClient:
     def get_task_state(self, task_id: str) -> dict[str, Any]:
         return self._request_json("GET", f"/api/v1/connector/open-rmf/tasks/{task_id}/state")
 
+    # ----- Door endpoints -----
+
+    def get_door_state(self, door: str) -> dict[str, Any]:
+        """Single-shot door-state read. WSS subscribe is the steady-state
+        path; this is for cold-start / smoke / health probes.
+
+        `door` is the raw door_name as discovered; URL-encoding is
+        handled by httpx.
+        """
+        return self._request_json(
+            "GET", f"/api/v1/connector/open-rmf/doors/{door}/state",
+        )
+
+    def post_door_request(
+        self,
+        door: str,
+        requester_id: str,
+        requested_mode: str,
+        execution_id: str,
+    ) -> dict[str, Any]:
+        """Forward an Open-RMF `DoorRequest` to the QuikSync server.
+
+        `requested_mode` must be `"OPEN"` or `"CLOSED"`; the server
+        rejects `"MOVING"` with 400 `invalid_request_mode`. Same
+        idempotency contract as the other POSTs — repeated calls with
+        the same `execution_id` are server-side-deduped.
+        """
+        return self._request_json(
+            "POST", f"/api/v1/connector/open-rmf/doors/{door}/request",
+            body={
+                "requester_id": requester_id,
+                "requested_mode": requested_mode,
+                "execution_id": execution_id,
+            },
+        )
+
     # ----- Core request loop -----
 
     def _request_json(
