@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!--
+  Launch the QuikSync lift adapter.
+
+  Args:
+    config       — path to the YAML config (REQUIRED)
+    dry_run      — bootstrap + drain one state frame per lift + exit ("false"/"true")
+    use_sim_time — Use ROS simulated time (for offline / simulator testing)
+    log_level    — Python logging level for the adapter process
+
+  Example:
+    ros2 launch lift_adapter_quiksync lift_adapter_quiksync.launch.xml \
+      config:=/etc/quiksync/lift.yaml
+-->
+<launch>
+  <arg name="config" description="path to lift_adapter_quiksync YAML config"/>
+  <arg name="dry_run" default="false" description="bootstrap + drain frames + exit (no rclpy required)"/>
+  <arg name="use_sim_time" default="false" description="Use ROS simulated time"/>
+  <arg name="log_level" default="INFO"/>
+
+  <node pkg="lift_adapter_quiksync"
+        exec="lift_adapter_quiksync"
+        name="lift_adapter_quiksync"
+        output="screen">
+    <param name="--ros-args" value=""/>
+    <env name="PYTHONUNBUFFERED" value="1"/>
+    <env name="LOG_LEVEL" value="$(var log_level)"/>
+    <arg if="$(var dry_run)" name="--dry-run"/>
+    <arg if="$(var use_sim_time)" name="--use-sim-time"/>
+    <arg name="--config" value="$(var config)"/>
+  </node>
+</launch>
