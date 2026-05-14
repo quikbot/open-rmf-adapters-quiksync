@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.1.1...v0.1.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* **fleet_adapter_quiksync:** accept Open-RMF schema-conformant map shape for FleetState.robots ([#8](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/8)) ([62cf3b7](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/62cf3b7fba2ed15294e8eeee1d874e3c574d3344))
+
 ## [0.1.1](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.1.0...v0.1.1) (2026-05-14)
 
 
