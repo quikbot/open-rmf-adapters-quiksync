@@ -32,7 +32,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Callable, Optional
 
 from quiksync_client import QuikSyncHttpClient, QuikSyncWsClient, millis_to_time_parts
 
@@ -60,9 +60,16 @@ _MODE_OPEN = 2
 
 
 PublishStateFields = Callable[[dict], None]
-"""Adapter wires this to: build `rmf_door_msgs/DoorState` from the dict
-and call `publisher.publish(msg)`. The dict has the shape:
-`{door_name: str, door_time: {sec: int, nanosec: int}, current_mode: {value: int}}`."""
+"""Sync callable — the adapter wires this to: build
+`rmf_door_msgs/DoorState` from the dict and call
+`publisher.publish(msg)`. The dict has the shape:
+`{door_name: str, door_time: {sec: int, nanosec: int}, current_mode: {value: int}}`.
+
+The handle invokes this synchronously from its async state-pump
+callback. `async def` callbacks will not be awaited — the coroutine
+object is discarded and Python emits a "coroutine was never awaited"
+warning. Wrap any async work in a fire-and-forget `asyncio.create_task`
+inside a sync wrapper if you need it."""
 
 
 class RequestTranslationError(Exception):
@@ -78,14 +85,18 @@ class DoorHandle:
         http_client: QuikSyncHttpClient,
         ws_client: QuikSyncWsClient,
         publish_state_fields: PublishStateFields,
-        namespace: Optional[str] = None,
     ) -> None:
         self._door_name = door_name
         self._http = http_client
         self._ws = ws_client
         self._publish_state_fields = publish_state_fields
-        self._namespace = namespace
         self._pump = DoorStatePump(ws_client, door_name, self._on_state_frame)
+        # Counters below are touched from disjoint contexts and so don't
+        # need a lock:
+        # - `_state_dispatched` only from the async state-pump task
+        # - `_requests_dispatched` / `_requests_rejected` only from
+        #   `dispatch_request` (typically called on the rclpy subscriber
+        #   thread by the future node layer).
         self._state_dispatched = 0
         self._requests_dispatched = 0
         self._requests_rejected = 0
@@ -139,9 +150,12 @@ class DoorHandle:
             `{"door_name": str, "door_time": {"sec": int, "nanosec": int},
               "current_mode": {"value": int}}`
 
-        Raises:
-            `KeyError` if the frame is missing required fields.
-            `TypeError` if `door_time` is not an int.
+        Raises (caller catches via `_on_state_frame`'s try/except):
+            `KeyError` if the frame is missing a required field.
+            `TypeError` if `door_time` is not an int (e.g. a malformed
+                server payload). The bool guard in
+                `millis_to_time_parts` also surfaces here.
+            `ValueError` if `current_mode.value` is not int-coercible.
         """
         door_time_ms = frame["door_time"]
         sec, nanosec = millis_to_time_parts(door_time_ms)
@@ -210,7 +224,7 @@ class DoorHandle:
         ros_request: Any,
         *,
         execution_id: Optional[str] = None,
-    ) -> "_TranslatedDoorRequest":
+    ) -> _TranslatedDoorRequest:
         """Translate a `rmf_door_msgs/DoorRequest`-shaped object into the
         wire fields for `post_door_request`."""
         door_name = _require_str(getattr(ros_request, "door_name", None), "door_name")
