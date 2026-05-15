@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>lift_adapter_quiksync</name>
-  <version>0.2.0</version> <!-- x-release-please-version -->
+  <version>0.2.1</version> <!-- x-release-please-version -->
   <description>QuikSync Open-RMF lift adapter — bridges QuikSync-managed lifts to a customer Open-RMF deployment.</description>
   <maintainer email="tech@quikbot.ai">QuikBot</maintainer>
   <license>Apache-2.0</license>
