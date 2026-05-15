@@ -70,7 +70,7 @@ async def test_dispatches_each_frame():
     await pump.stop()
 
     assert pump.frames_seen() == 3
-    assert pump.frames_dispatched() == 3
+    assert pump.dispatches_ok() == 3
     assert [l for l, _ in received] == ["lift_alpha", "lift_alpha", "lift_alpha"]
     assert received[1][1]["session_id"] == "rmf:robot-1"
 
@@ -97,7 +97,7 @@ async def test_callback_exception_is_logged_not_raised():
     await pump.stop()
 
     assert pump.frames_seen() == 3
-    assert pump.frames_dispatched() == 0
+    assert pump.dispatches_ok() == 0
     assert call_count == 3
 
 
@@ -117,7 +117,7 @@ async def test_fault_frame_is_forwarded():
     await pump.stop()
 
     assert pump.frames_seen() == 1
-    assert pump.frames_dispatched() == 1
+    assert pump.dispatches_ok() == 1
     assert received[0]["current_mode"]["value"] == 4
 
 
@@ -159,4 +159,4 @@ async def test_no_frames_is_clean_lifecycle():
     await asyncio.sleep(0.05)
     await pump.stop()
     assert pump.frames_seen() == 0
-    assert pump.frames_dispatched() == 0
+    assert pump.dispatches_ok() == 0

@@ -312,9 +312,9 @@ class QuikSyncHttpClient:
             # 2xx
             return self._parse_body(resp)
 
-        # If we exit the loop without returning/raising, surface the last error.
-        if last_error is not None:
-            raise last_error
+        # Defensive: every branch above either `return`s or `raise`s on the
+        # final attempt, so this line is unreachable in practice — kept as
+        # a fallback so static type checkers see a guaranteed exit.
         raise QuikSyncConnectionError(f"{method} {path}: exhausted retries")
 
     @staticmethod

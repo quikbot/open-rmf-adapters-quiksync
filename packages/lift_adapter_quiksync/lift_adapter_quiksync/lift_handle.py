@@ -244,7 +244,17 @@ class LiftHandle:
 
         Translation rejections + session-conflict rejections do NOT
         raise — they log + count. Transport failures from the http
-        client DO propagate.
+        client DO propagate — caller (the rclpy subscriber wrapper)
+        decides retry policy. Same stance as `DoorHandle.dispatch_request`.
+
+        Transport-failure subtlety for `AGV_MODE`: the adapter-side
+        session lock is acquired *before* the POST; if the POST then
+        raises, the local lock is left in place. It self-heals on the
+        next state-push frame via `observe_server_state` (the server
+        will report a different / empty `session_id` and our request
+        view is cleared). For session-TTL eviction of a fleet that
+        stops emitting state pushes entirely, see
+        `LiftSessionManager(ttl_seconds=...)`.
         """
         # NO_REQUEST short-circuit before any other work.
         request_type_raw = getattr(ros_request, "request_type", None)

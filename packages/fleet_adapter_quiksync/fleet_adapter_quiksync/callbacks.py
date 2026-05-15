@@ -63,9 +63,18 @@ def _extract_destination(destination: Any) -> Optional[dict[str, Any]]:
         if position is None:
             return None
         # rmf_adapter Vector3d-style (.x/.y/.yaw) is the documented shape.
+        # Fall back to indexed access for (x, y) since they're load-bearing;
+        # for yaw, default to 0.0 if neither attribute nor index 2 is present
+        # so a future 2-element point doesn't silently drop the navigate.
         x = float(getattr(position, "x", None) if hasattr(position, "x") else position[0])
         y = float(getattr(position, "y", None) if hasattr(position, "y") else position[1])
-        yaw = float(getattr(position, "yaw", None) if hasattr(position, "yaw") else position[2])
+        if hasattr(position, "yaw"):
+            yaw = float(getattr(position, "yaw"))
+        else:
+            try:
+                yaw = float(position[2])
+            except (IndexError, TypeError):
+                yaw = 0.0
     except (AttributeError, IndexError, TypeError, ValueError):
         return None
 

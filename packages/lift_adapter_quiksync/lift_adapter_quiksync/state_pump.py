@@ -47,16 +47,17 @@ class LiftStatePump:
         self._task: Optional[asyncio.Task] = None
         self._stop_requested = False
         self._frames_seen = 0
-        self._frames_dispatched = 0
+        self._dispatches_ok = 0
 
     def frames_seen(self) -> int:
         """Total LiftState frames received (testing helper)."""
         return self._frames_seen
 
-    def frames_dispatched(self) -> int:
-        """Total frames that the callback handled without raising
-        (testing helper)."""
-        return self._frames_dispatched
+    def dispatches_ok(self) -> int:
+        """Total successful callback invocations (testing helper).
+        For lift pumps, 1:1 with frames seen (one frame → one
+        callback). Named consistently with the fleet + door pumps."""
+        return self._dispatches_ok
 
     async def start(self) -> None:
         """Spawn the pump task. Returns immediately."""
@@ -75,8 +76,11 @@ class LiftStatePump:
             self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
+                # Expected — we just cancelled it. Swallow on stop().
                 pass
+            except Exception as e:  # noqa: BLE001
+                log.warning("LiftStatePump task exited with %s: %s", type(e).__name__, e)
             self._task = None
         log.info("LiftStatePump stopped for lift=%s", self._lift)
 
@@ -98,6 +102,6 @@ class LiftStatePump:
         self._frames_seen += 1
         try:
             await self._on_state(self._lift, frame)
-            self._frames_dispatched += 1
+            self._dispatches_ok += 1
         except Exception as e:  # noqa: BLE001
             log.warning("on_state callback failed for lift=%s: %s", self._lift, e)

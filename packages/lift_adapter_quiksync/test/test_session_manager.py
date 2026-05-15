@@ -169,3 +169,54 @@ def test_current_holder_after_request_only():
     sm.try_acquire("lift_alpha", "rmf:robot-1")
     # Before any state-push, we report what we requested.
     assert sm.current_holder("lift_alpha") == "rmf:robot-1"
+
+
+# ----- TTL eviction -----
+
+
+def test_ttl_disabled_by_default():
+    """ttl_seconds=0 → eviction disabled; entries persist indefinitely."""
+    sm = LiftSessionManager()
+    sm.try_acquire("lift_alpha", "rmf:robot-1")
+    # Manually rewind the request time to simulate a stale entry.
+    sm._requested_at["lift_alpha"] = sm._requested_at["lift_alpha"] - 99999
+    assert sm.current_holder("lift_alpha") == "rmf:robot-1"
+
+
+def test_ttl_evicts_stale_request_on_try_acquire():
+    """A stale `_requested` entry is dropped before deciding the acquire."""
+    sm = LiftSessionManager(ttl_seconds=1.0)
+    sm.try_acquire("lift_alpha", "rmf:robot-1")
+    # Backdate so the entry is older than the TTL.
+    sm._requested_at["lift_alpha"] -= 5.0
+    # A different session can now acquire — the stale request was evicted.
+    assert sm.try_acquire("lift_alpha", "rmf:robot-2") is True
+    assert sm.current_holder("lift_alpha") == "rmf:robot-2"
+
+
+def test_ttl_evicts_stale_request_on_observe_server_state():
+    """`observe_server_state` evicts a stale `_requested` even when the
+    server view has no change to report."""
+    sm = LiftSessionManager(ttl_seconds=1.0)
+    sm.try_acquire("lift_alpha", "rmf:robot-1")
+    sm._requested_at["lift_alpha"] -= 5.0
+    # Server view stays empty → without TTL eviction the local request
+    # would be cleared anyway, so this exercises the "lock is held
+    # server-side" path: server says held by robot-1 too.
+    sm.observe_server_state("lift_alpha", "rmf:robot-1")
+    assert "lift_alpha" not in sm._requested
+    assert "lift_alpha" not in sm._requested_at
+
+
+def test_ttl_refreshes_on_same_session_retry():
+    """Same-session retry refreshes the timestamp so the entry isn't
+    evicted while the fleet is still active."""
+    sm = LiftSessionManager(ttl_seconds=1.0)
+    sm.try_acquire("lift_alpha", "rmf:robot-1")
+    sm._requested_at["lift_alpha"] -= 0.6  # 0.6s ago
+    sm.try_acquire("lift_alpha", "rmf:robot-1")  # refresh
+    sm._requested_at["lift_alpha"] -= 0.6  # but only 0.6s since refresh
+    # Total elapsed since first acquire is 1.2s but TTL is 1.0s; the
+    # mid-way refresh means we're still inside TTL relative to the
+    # latest activity, so the request stands.
+    assert sm.current_holder("lift_alpha") == "rmf:robot-1"
