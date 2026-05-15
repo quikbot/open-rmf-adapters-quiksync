@@ -95,7 +95,7 @@ def test_main_dry_run_drains_frames(monkeypatch, tmp_path):
 
     yielded: list[str] = []
 
-    async def fake_subscribe(self, lift: str):
+    async def fake_subscribe(self, lift: str, namespace=None):
         yielded.append(lift)
         yield {
             "lift_name": lift, "lift_time": 1000,
@@ -118,7 +118,7 @@ def test_main_dry_run_returns_2_when_no_frames(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncWsClient
 
-    async def empty(self, lift: str):
+    async def empty(self, lift: str, namespace=None):
         return
         yield
 
@@ -215,7 +215,7 @@ def test_main_full_mode_constructs_node_and_spins(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncWsClient
 
-    async def empty(self, lift: str):
+    async def empty(self, lift: str, namespace=None):
         return
         yield
 
@@ -234,7 +234,7 @@ def test_main_full_mode_route_request_dispatches(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncHttpClient, QuikSyncWsClient
 
-    async def empty(self, lift: str):
+    async def empty(self, lift: str, namespace=None):
         return
         yield
 

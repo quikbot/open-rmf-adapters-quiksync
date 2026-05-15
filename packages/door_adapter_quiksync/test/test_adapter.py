@@ -123,7 +123,7 @@ def test_main_dry_run_drains_frames(monkeypatch, tmp_path):
 
     yielded: list[str] = []
 
-    async def fake_subscribe(self, door: str):
+    async def fake_subscribe(self, door: str, namespace=None):
         yielded.append(door)
         yield {
             "door_name": door,
@@ -148,7 +148,7 @@ def test_main_dry_run_returns_2_when_no_frames(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncWsClient
 
-    async def empty_subscribe(self, door: str):
+    async def empty_subscribe(self, door: str, namespace=None):
         return
         yield  # unreachable; makes this an async generator
 
@@ -277,7 +277,7 @@ def test_main_full_mode_constructs_node_and_spins(monkeypatch, tmp_path):
     # do and the adapter's stop() completes quickly.
     from quiksync_client import QuikSyncWsClient
 
-    async def empty_subscribe(self, door: str):
+    async def empty_subscribe(self, door: str, namespace=None):
         return
         yield  # unreachable; async generator marker
 
@@ -301,7 +301,7 @@ def test_main_full_mode_route_request_dispatches_to_handle(monkeypatch, tmp_path
 
     from quiksync_client import QuikSyncHttpClient, QuikSyncWsClient
 
-    async def empty_subscribe(self, door: str):
+    async def empty_subscribe(self, door: str, namespace=None):
         return
         yield
 
@@ -309,7 +309,8 @@ def test_main_full_mode_route_request_dispatches_to_handle(monkeypatch, tmp_path
 
     posts: list[dict] = []
 
-    def fake_post_door_request(self, *, door, requester_id, requested_mode, execution_id):
+    def fake_post_door_request(self, *, door, requester_id, requested_mode, execution_id,
+                               namespace=None):
         posts.append({
             "door": door,
             "requester_id": requester_id,
@@ -365,7 +366,7 @@ def test_main_full_mode_unknown_door_request_is_silently_dropped(monkeypatch, tm
 
     from quiksync_client import QuikSyncHttpClient, QuikSyncWsClient
 
-    async def empty_subscribe(self, door: str):
+    async def empty_subscribe(self, door: str, namespace=None):
         return
         yield
 

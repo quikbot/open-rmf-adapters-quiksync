@@ -175,7 +175,7 @@ def test_main_with_yaml_config_attempts_discovery_fetch(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncHttpClient
 
-    def boom(self):
+    def boom(self, namespace=None):
         raise RuntimeError("network down")
 
     monkeypatch.setattr(QuikSyncHttpClient, "get_discovery", boom)
@@ -191,7 +191,7 @@ def test_main_returns_4_when_fleet_not_in_discovery(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncHttpClient
 
-    def empty_discovery(self):
+    def empty_discovery(self, namespace=None):
         return {"fleets": [], "doors": [], "lifts": []}
 
     monkeypatch.setattr(QuikSyncHttpClient, "get_discovery", empty_discovery)
