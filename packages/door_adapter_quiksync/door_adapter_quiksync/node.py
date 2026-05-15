@@ -78,6 +78,7 @@ class DoorAdapterNode:
         msg_module: Any,
         publish_msg: Any,
         log_warning: Optional[Any] = None,
+        namespace: Optional[str] = None,
     ) -> None:
         """Build a DoorAdapterNode.
 
@@ -104,6 +105,7 @@ class DoorAdapterNode:
                 http_client=http_client,
                 ws_client=ws_client,
                 publish_state_fields=self._make_publish_callback(name),
+                namespace=namespace,
             )
             for name in door_names
         }

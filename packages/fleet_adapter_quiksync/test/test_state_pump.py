@@ -22,7 +22,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_fleet_state(self, fleet: str):
+    async def subscribe_fleet_state(self, fleet: str, namespace=None):
         for frame in self._frames:
             if self._closed:
                 return

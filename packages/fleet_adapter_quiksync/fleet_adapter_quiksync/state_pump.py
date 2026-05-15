@@ -34,10 +34,12 @@ class FleetStatePump:
         ws_client: QuikSyncWsClient,
         fleet_name: str,
         on_robot_state: RobotStateCallback,
+        namespace: Optional[str] = None,
     ) -> None:
         self._ws = ws_client
         self._fleet = fleet_name
         self._on_robot_state = on_robot_state
+        self._namespace = namespace
         self._task: Optional[asyncio.Task] = None
         self._stop_requested = False
         self._frames_seen = 0
@@ -76,7 +78,7 @@ class FleetStatePump:
 
     async def _run(self) -> None:
         try:
-            async for frame in self._ws.subscribe_fleet_state(self._fleet):
+            async for frame in self._ws.subscribe_fleet_state(self._fleet, namespace=self._namespace):
                 if self._stop_requested:
                     return
                 await self._dispatch_frame(frame)

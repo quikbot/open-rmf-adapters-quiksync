@@ -28,7 +28,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_door_state(self, door: str):
+    async def subscribe_door_state(self, door: str, namespace=None):
         for frame in self._frames:
             if self._closed:
                 return
@@ -43,7 +43,8 @@ class FakeHttpClient:
         self.raises: Exception | None = None
 
     def post_door_request(self, *, door: str, requester_id: str,
-                          requested_mode: str, execution_id: str) -> dict[str, Any]:
+                          requested_mode: str, execution_id: str,
+                          namespace: str | None = None) -> dict[str, Any]:
         if self.raises is not None:
             raise self.raises
         record = {

@@ -24,7 +24,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_lift_state(self, lift: str):
+    async def subscribe_lift_state(self, lift: str, namespace=None):
         for frame in self._frames:
             if self._closed:
                 return
@@ -37,7 +37,8 @@ class FakeHttpClient:
         self.raises: Exception | None = None
 
     def post_lift_request(self, *, lift, session_id, request_type,
-                          destination_floor, door_state, execution_id):
+                          destination_floor, door_state, execution_id,
+                          namespace=None):
         if self.raises is not None:
             raise self.raises
         record = {

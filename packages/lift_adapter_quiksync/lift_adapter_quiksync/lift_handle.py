@@ -122,13 +122,15 @@ class LiftHandle:
         ws_client: QuikSyncWsClient,
         publish_state_fields: PublishStateFields,
         session_manager: LiftSessionManager,
+        namespace: Optional[str] = None,
     ) -> None:
         self._lift_name = lift_name
         self._http = http_client
         self._ws = ws_client
         self._publish_state_fields = publish_state_fields
         self._session_manager = session_manager
-        self._pump = LiftStatePump(ws_client, lift_name, self._on_state_frame)
+        self._namespace = namespace
+        self._pump = LiftStatePump(ws_client, lift_name, self._on_state_frame, namespace=namespace)
         # Counters touched from disjoint contexts; no lock needed.
         self._state_dispatched = 0
         self._requests_dispatched = 0
@@ -297,6 +299,7 @@ class LiftHandle:
             destination_floor=translated.destination_floor,
             door_state=translated.door_state,
             execution_id=translated.execution_id,
+            namespace=self._namespace,
         )
 
         # On END_SESSION + HUMAN_MODE, release adapter-side after the

@@ -102,6 +102,7 @@ def find_our_fleet(discovery: dict[str, Any], fleet_name: str) -> Optional[dict[
 def _fetch_fleet_entry(
     http: QuikSyncHttpClient,
     fleet_name: str,
+    namespace: Optional[str] = None,
 ) -> tuple[Optional[dict[str, Any]], Optional[int]]:
     """Fetch /discovery + locate our fleet entry, with consistent error
     reporting. Returns ``(fleet_entry, exit_code)`` where exactly one
@@ -110,7 +111,7 @@ def _fetch_fleet_entry(
     contract (3 = discovery fetch failed; 4 = fleet not found).
     """
     try:
-        discovery = http.get_discovery()
+        discovery = http.get_discovery(namespace=namespace)
     except Exception as e:  # noqa: BLE001
         log.error("discovery fetch failed: %s", e)
         return None, 3
@@ -156,7 +157,7 @@ async def _run_dry(
         if name in handles:
             handles[name].on_state(state)
 
-    pump = FleetStatePump(ws, config.fleet_name, on_state)
+    pump = FleetStatePump(ws, config.fleet_name, on_state, namespace=config.namespace)
     await pump.start()
     try:
         # Wait briefly for the first frame; log + exit either way.
@@ -239,7 +240,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     fleet_entry: Optional[dict[str, Any]] = None
     handles: dict[str, RobotHandle] = {}
     if needs_discovery:
-        fleet_entry, exit_code = _fetch_fleet_entry(http, config.fleet_name)
+        fleet_entry, exit_code = _fetch_fleet_entry(http, config.fleet_name, namespace=config.namespace)
         if exit_code is not None:
             auth.close()
             http.close()
@@ -337,7 +338,7 @@ def _run_full(
                         "(internal invariant — was main() short-circuited?)"
                     )
                 log.info("dynamic mode: fetching building_map for fleet=%s", config.fleet_name)
-                building_map = http.get_building_map()
+                building_map = http.get_building_map(namespace=config.namespace)
                 adapter, fleet_handle = bind_easy_full_control(
                     rmf_adapter=rmf_adapter,
                     fleet_entry=fleet_entry,
@@ -345,6 +346,7 @@ def _run_full(
                     handles=handles,
                     http=http,
                     server_uri=server_uri,
+                    namespace=config.namespace,
                 )
             else:
                 # YAML path: hand the config + nav_graph file paths to
@@ -358,6 +360,7 @@ def _run_full(
                     handles=handles,
                     fleet_name=config.fleet_name,
                     server_uri=server_uri,
+                    namespace=config.namespace,
                 )
         except BindingError as e:
             log.error("EasyFullControl binding failed: %s", e)
@@ -458,7 +461,9 @@ class _StatePumpRunner:
             if handle is not None:
                 handle.on_state(state)
 
-        self._pump = FleetStatePump(self._ws, self._config.fleet_name, on_state)
+        self._pump = FleetStatePump(
+            self._ws, self._config.fleet_name, on_state, namespace=self._config.namespace,
+        )
 
         try:
             loop.run_until_complete(self._pump.start())

@@ -38,10 +38,12 @@ class LiftStatePump:
         ws_client: QuikSyncWsClient,
         lift_name: str,
         on_state: LiftStateCallback,
+        namespace: Optional[str] = None,
     ) -> None:
         self._ws = ws_client
         self._lift = lift_name
         self._on_state = on_state
+        self._namespace = namespace
         self._task: Optional[asyncio.Task] = None
         self._stop_requested = False
         self._frames_seen = 0
@@ -80,7 +82,7 @@ class LiftStatePump:
 
     async def _run(self) -> None:
         try:
-            async for frame in self._ws.subscribe_lift_state(self._lift):
+            async for frame in self._ws.subscribe_lift_state(self._lift, namespace=self._namespace):
                 if self._stop_requested:
                     return
                 await self._dispatch_frame(frame)

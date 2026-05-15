@@ -67,6 +67,7 @@ class LiftAdapterNode:
         publish_msg: Any,
         log_warning: Optional[Any] = None,
         session_manager: Optional[LiftSessionManager] = None,
+        namespace: Optional[str] = None,
     ) -> None:
         """Build a LiftAdapterNode.
 
@@ -93,6 +94,7 @@ class LiftAdapterNode:
                 ws_client=ws_client,
                 publish_state_fields=self._make_publish_callback(name),
                 session_manager=self._session_manager,
+                namespace=namespace,
             )
             for name in lift_names
         }

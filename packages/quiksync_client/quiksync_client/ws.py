@@ -75,27 +75,37 @@ class QuikSyncWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_fleet_state(self, fleet: str) -> AsyncIterator[dict[str, Any]]:
+    async def subscribe_fleet_state(
+        self, fleet: str, namespace: Optional[str] = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         path = f"/api/connector/ws/open-rmf/fleets/{fleet}/state/subscribe"
-        async for frame in self._subscribe(path):
+        async for frame in self._subscribe(path, namespace=namespace):
             yield frame
 
-    async def subscribe_door_state(self, door: str) -> AsyncIterator[dict[str, Any]]:
+    async def subscribe_door_state(
+        self, door: str, namespace: Optional[str] = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         path = f"/api/connector/ws/open-rmf/doors/{door}/state/subscribe"
-        async for frame in self._subscribe(path):
+        async for frame in self._subscribe(path, namespace=namespace):
             yield frame
 
-    async def subscribe_lift_state(self, lift: str) -> AsyncIterator[dict[str, Any]]:
+    async def subscribe_lift_state(
+        self, lift: str, namespace: Optional[str] = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         path = f"/api/connector/ws/open-rmf/lifts/{lift}/state/subscribe"
-        async for frame in self._subscribe(path):
+        async for frame in self._subscribe(path, namespace=namespace):
             yield frame
 
-    async def _subscribe(self, path: str) -> AsyncIterator[dict[str, Any]]:
+    async def _subscribe(
+        self, path: str, namespace: Optional[str] = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         backoff = self._config.backoff_base_seconds
         while not self._closed:
             try:
                 token = self._auth.get_token()
                 url = f"{self._base_ws}{path}?access_token={token}"
+                if namespace:
+                    url += f"&namespace={namespace}"
                 async with websockets.connect(url) as ws:
                     backoff = self._config.backoff_base_seconds  # reset on success
                     log.info("WSS connected: %s", path)

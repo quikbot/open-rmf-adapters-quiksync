@@ -73,14 +73,23 @@ class QuikSyncHttpClient:
 
     # ----- QuikSync Open-RMF adapter endpoints -----
 
-    def get_discovery(self) -> dict[str, Any]:
-        return self._request_json("GET", "/api/v1/connector/open-rmf/discovery")
+    def get_discovery(self, namespace: Optional[str] = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET", "/api/v1/connector/open-rmf/discovery",
+            params=_ns_params(namespace),
+        )
 
-    def get_building_map(self) -> dict[str, Any]:
-        return self._request_json("GET", "/api/v1/connector/open-rmf/building_map")
+    def get_building_map(self, namespace: Optional[str] = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET", "/api/v1/connector/open-rmf/building_map",
+            params=_ns_params(namespace),
+        )
 
-    def get_fleet_state(self, fleet: str) -> dict[str, Any]:
-        return self._request_json("GET", f"/api/v1/connector/open-rmf/fleets/{fleet}/state")
+    def get_fleet_state(self, fleet: str, namespace: Optional[str] = None) -> dict[str, Any]:
+        return self._request_json(
+            "GET", f"/api/v1/connector/open-rmf/fleets/{fleet}/state",
+            params=_ns_params(namespace),
+        )
 
     def post_navigate(
         self,
@@ -91,6 +100,7 @@ class QuikSyncHttpClient:
         dock_name: Optional[str] = None,
         speed_limit: Optional[float] = None,
         deadline_unix_millis: Optional[int] = None,
+        namespace: Optional[str] = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "execution_id": execution_id,
@@ -103,13 +113,18 @@ class QuikSyncHttpClient:
         if deadline_unix_millis is not None:
             body["deadline_unix_millis"] = deadline_unix_millis
         return self._request_json(
-            "POST", f"/api/v1/connector/open-rmf/fleets/{fleet}/robots/{robot}/navigate", body=body,
+            "POST", f"/api/v1/connector/open-rmf/fleets/{fleet}/robots/{robot}/navigate",
+            body=body, params=_ns_params(namespace),
         )
 
-    def post_stop(self, fleet: str, robot: str, execution_id: str) -> dict[str, Any]:
+    def post_stop(
+        self, fleet: str, robot: str, execution_id: str,
+        namespace: Optional[str] = None,
+    ) -> dict[str, Any]:
         return self._request_json(
             "POST", f"/api/v1/connector/open-rmf/fleets/{fleet}/robots/{robot}/stop",
             body={"execution_id": execution_id},
+            params=_ns_params(namespace),
         )
 
     def post_perform_action(
@@ -120,6 +135,7 @@ class QuikSyncHttpClient:
         category: str,
         description: Any,
         deadline_unix_millis: Optional[int] = None,
+        namespace: Optional[str] = None,
     ) -> dict[str, Any]:
         """Forward an Open-RMF `perform_action` task phase to the QuikSync server.
 
@@ -136,7 +152,7 @@ class QuikSyncHttpClient:
             body["deadline_unix_millis"] = deadline_unix_millis
         return self._request_json(
             "POST", f"/api/v1/connector/open-rmf/fleets/{fleet}/robots/{robot}/perform_action",
-            body=body,
+            body=body, params=_ns_params(namespace),
         )
 
     def get_task_state(self, task_id: str) -> dict[str, Any]:
@@ -144,7 +160,7 @@ class QuikSyncHttpClient:
 
     # ----- Door endpoints -----
 
-    def get_door_state(self, door: str) -> dict[str, Any]:
+    def get_door_state(self, door: str, namespace: Optional[str] = None) -> dict[str, Any]:
         """Single-shot door-state read. WSS subscribe is the steady-state
         path; this is for cold-start / smoke / health probes.
 
@@ -153,6 +169,7 @@ class QuikSyncHttpClient:
         """
         return self._request_json(
             "GET", f"/api/v1/connector/open-rmf/doors/{door}/state",
+            params=_ns_params(namespace),
         )
 
     def post_door_request(
@@ -161,6 +178,7 @@ class QuikSyncHttpClient:
         requester_id: str,
         requested_mode: str,
         execution_id: str,
+        namespace: Optional[str] = None,
     ) -> dict[str, Any]:
         """Forward an Open-RMF `DoorRequest` to the QuikSync server.
 
@@ -176,11 +194,12 @@ class QuikSyncHttpClient:
                 "requested_mode": requested_mode,
                 "execution_id": execution_id,
             },
+            params=_ns_params(namespace),
         )
 
     # ----- Lift endpoints -----
 
-    def get_lift_state(self, lift: str) -> dict[str, Any]:
+    def get_lift_state(self, lift: str, namespace: Optional[str] = None) -> dict[str, Any]:
         """Single-shot lift-state read. WSS subscribe is the steady-
         state path; this is for cold-start / smoke / health probes.
 
@@ -189,6 +208,7 @@ class QuikSyncHttpClient:
         """
         return self._request_json(
             "GET", f"/api/v1/connector/open-rmf/lifts/{lift}/state",
+            params=_ns_params(namespace),
         )
 
     def post_lift_request(
@@ -199,6 +219,7 @@ class QuikSyncHttpClient:
         destination_floor: str,
         door_state: str,
         execution_id: str,
+        namespace: Optional[str] = None,
     ) -> dict[str, Any]:
         """Forward an Open-RMF `LiftRequest` to the QuikSync server.
 
@@ -223,24 +244,31 @@ class QuikSyncHttpClient:
                 "door_state": door_state,
                 "execution_id": execution_id,
             },
+            params=_ns_params(namespace),
         )
 
-    def delete_lift_session(self, lift: str) -> dict[str, Any]:
+    def delete_lift_session(
+        self, lift: str, namespace: Optional[str] = None,
+    ) -> dict[str, Any]:
         """Admin force-clear the lift's session lock.
 
         Requires the `open-rmf:invoke` scope on the M2M token. Used to
         recover from a stuck session on the server side (e.g. a fleet
-        crashed mid-session and never sent END_SESSION). Emits
-        `platform.open_rmf.lift.session_force_cleared` server-side.
+        crashed mid-session and never sent END_SESSION).
         """
         return self._request_json(
             "DELETE", f"/api/v1/connector/open-rmf/lifts/{lift}/session",
+            params=_ns_params(namespace),
         )
 
     # ----- Core request loop -----
 
     def _request_json(
-        self, method: str, path: str, body: Optional[dict[str, Any]] = None,
+        self,
+        method: str,
+        path: str,
+        body: Optional[dict[str, Any]] = None,
+        params: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
         last_error: Optional[Exception] = None
         for attempt in range(self._config.max_retries + 1):
@@ -249,7 +277,7 @@ class QuikSyncHttpClient:
                 headers = {"authorization": f"Bearer {token}"}
                 if body is not None:
                     headers["content-type"] = "application/json"
-                resp = self._client.request(method, path, headers=headers, json=body)
+                resp = self._client.request(method, path, headers=headers, json=body, params=params)
             except httpx.HTTPError as e:
                 last_error = e
                 if attempt < self._config.max_retries:
@@ -304,3 +332,14 @@ class QuikSyncHttpClient:
         # Jitter ±25% so concurrent retries don't synchronise.
         jitter = sleep_for * 0.25 * (random.random() * 2 - 1)
         time.sleep(max(sleep_for + jitter, 0.05))
+
+
+def _ns_params(namespace: Optional[str]) -> Optional[dict[str, str]]:
+    """Build the namespace query-param dict, or None when unset.
+
+    Multi-namespace orgs scope the QuikSync server's lookup via
+    `?namespace=<adastra-namespace>`. Single-namespace orgs (most
+    deployments) leave the kwarg unset and the server resolves by
+    `org_id` alone.
+    """
+    return {"namespace": namespace} if namespace else None

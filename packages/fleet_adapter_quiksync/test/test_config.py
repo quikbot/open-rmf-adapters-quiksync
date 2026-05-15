@@ -25,6 +25,12 @@ def test_from_dict_minimal_ok():
     assert cfg.fleet_name == "service_robots"
     assert cfg.update_interval_seconds == 0.5  # default
     assert cfg.state_subscribe_reconnect_seconds == 1.0  # default
+    assert cfg.namespace is None  # default — single-namespace orgs leave it unset
+
+
+def test_from_dict_with_namespace():
+    cfg = FleetAdapterConfig.from_dict({**REQUIRED, "namespace": "Test"})
+    assert cfg.namespace == "Test"
 
 
 def test_from_dict_missing_required_raises():

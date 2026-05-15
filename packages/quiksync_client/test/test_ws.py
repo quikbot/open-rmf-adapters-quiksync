@@ -160,3 +160,39 @@ def test_subscribe_door_state_uses_ws_subroot(monkeypatch):
 def test_subscribe_lift_state_uses_ws_subroot(monkeypatch):
     url = _captured_first_url(monkeypatch, lambda c: c.subscribe_lift_state("service_lift_A"))
     assert url == "wss://example.test/api/connector/ws/open-rmf/lifts/service_lift_A/state/subscribe?access_token=test.jwt.token"
+
+
+def test_subscribe_appends_namespace_query_param(monkeypatch):
+    """When `namespace` is provided, the URL gains `&namespace=<value>`
+    after the access_token param. Verified once per surface."""
+    url = _captured_first_url(
+        monkeypatch, lambda c: c.subscribe_fleet_state("service_robots", namespace="Test"),
+    )
+    assert url == (
+        "wss://example.test/api/connector/ws/open-rmf/fleets/service_robots/state/subscribe"
+        "?access_token=test.jwt.token&namespace=Test"
+    )
+
+    url = _captured_first_url(
+        monkeypatch, lambda c: c.subscribe_door_state("Main Gate", namespace="Test"),
+    )
+    assert url == (
+        "wss://example.test/api/connector/ws/open-rmf/doors/Main Gate/state/subscribe"
+        "?access_token=test.jwt.token&namespace=Test"
+    )
+
+    url = _captured_first_url(
+        monkeypatch, lambda c: c.subscribe_lift_state("service_lift_A", namespace="Test"),
+    )
+    assert url == (
+        "wss://example.test/api/connector/ws/open-rmf/lifts/service_lift_A/state/subscribe"
+        "?access_token=test.jwt.token&namespace=Test"
+    )
+
+
+def test_subscribe_omits_namespace_when_unset(monkeypatch):
+    """Back-compat: no `&namespace=` segment when `namespace` is None."""
+    url = _captured_first_url(
+        monkeypatch, lambda c: c.subscribe_fleet_state("service_robots"),
+    )
+    assert "namespace=" not in url

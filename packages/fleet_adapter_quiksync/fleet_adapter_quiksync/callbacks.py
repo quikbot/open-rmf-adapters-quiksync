@@ -117,6 +117,7 @@ def make_navigate_callback(
     robot: str,
     handle: RobotHandle,
     execution_id_factory: Callable[[], str] = _new_execution_id,
+    namespace: Optional[str] = None,
 ) -> Callable[[Any, Any], None]:
     """Build the `RobotCallbacks.navigate` callable for one robot.
 
@@ -143,6 +144,7 @@ def make_navigate_callback(
                 destination=body,
                 dock_name=_dock_name(destination),
                 speed_limit=_speed_limit(destination),
+                namespace=namespace,
             )
         except QuikSyncClientError as e:
             log.error(
@@ -170,6 +172,7 @@ def make_stop_callback(
     robot: str,
     handle: RobotHandle,
     execution_id_factory: Callable[[], str] = _new_execution_id,
+    namespace: Optional[str] = None,
 ) -> Callable[[Any], None]:
     """Build the `RobotCallbacks.stop` callable for one robot.
 
@@ -188,7 +191,7 @@ def make_stop_callback(
     def stop(activity: Any) -> None:
         execution_id = execution_id_factory()
         try:
-            http.post_stop(fleet=fleet, robot=robot, execution_id=execution_id)
+            http.post_stop(fleet=fleet, robot=robot, execution_id=execution_id, namespace=namespace)
         except QuikSyncClientError as e:
             log.error(
                 "stop(%s/%s) failed: HTTP %s %s — %s",
@@ -215,6 +218,7 @@ def make_action_executor(
     robot: str,
     handle: RobotHandle,
     execution_id_factory: Callable[[], str] = _new_execution_id,
+    namespace: Optional[str] = None,
 ) -> Callable[[str, Any, Any], None]:
     """Build the `RobotCallbacks.action_executor` callable for one robot.
 
@@ -236,6 +240,7 @@ def make_action_executor(
                 execution_id=execution_id,
                 category=category,
                 description=description,
+                namespace=namespace,
             )
         except QuikSyncClientError as e:
             log.error(

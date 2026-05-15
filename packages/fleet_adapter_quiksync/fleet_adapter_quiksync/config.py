@@ -18,6 +18,7 @@ quiksync:         # QuikSync-specific extension block — Auth0 + endpoint wirin
   auth0_client_secret_file: ...
   auth0_organization: ...
   fleet_name: ...
+  namespace: Test       # optional; required only for multi-namespace orgs
   dynamic_mode: false   # opt-in
 ```
 
@@ -57,7 +58,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -84,6 +85,12 @@ class FleetAdapterConfig:
     state_subscribe_reconnect_seconds: float = 1.0
     # Mode selector
     dynamic_mode: bool = False     # false = YAML-driven; true = fetch /discovery + /building_map
+    # Multi-namespace scoping (optional). Set when the QuikSync org hosts
+    # multiple namespaces side-by-side and this adapter manages only one.
+    # The value is appended as `?namespace=<value>` on every REST + WSS
+    # call; the server filters by it. Leave unset for single-namespace
+    # orgs — the M2M token's `org_id` already scopes the response.
+    namespace: Optional[str] = None
 
     # ----- Construction -----
 

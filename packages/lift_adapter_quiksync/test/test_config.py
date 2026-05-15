@@ -26,6 +26,12 @@ def test_from_dict_minimal_ok():
     assert cfg.session_ttl_seconds == 3600.0  # default
     assert cfg.lift_states_topic == "lift_states"  # default
     assert cfg.lift_requests_topic == "lift_requests"  # default
+    assert cfg.namespace is None
+
+
+def test_from_dict_with_namespace():
+    cfg = LiftAdapterConfig.from_dict({**REQUIRED, "namespace": "Test"})
+    assert cfg.namespace == "Test"
 
 
 def test_from_dict_missing_required_raises():

@@ -85,12 +85,14 @@ class DoorHandle:
         http_client: QuikSyncHttpClient,
         ws_client: QuikSyncWsClient,
         publish_state_fields: PublishStateFields,
+        namespace: Optional[str] = None,
     ) -> None:
         self._door_name = door_name
         self._http = http_client
         self._ws = ws_client
         self._publish_state_fields = publish_state_fields
-        self._pump = DoorStatePump(ws_client, door_name, self._on_state_frame)
+        self._namespace = namespace
+        self._pump = DoorStatePump(ws_client, door_name, self._on_state_frame, namespace=namespace)
         # Counters below are touched from disjoint contexts and so don't
         # need a lock:
         # - `_state_dispatched` only from the async state-pump task
@@ -215,6 +217,7 @@ class DoorHandle:
             requester_id=translated.requester_id,
             requested_mode=translated.requested_mode,
             execution_id=translated.execution_id,
+            namespace=self._namespace,
         )
         self._requests_dispatched += 1
         return True

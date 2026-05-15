@@ -31,7 +31,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_door_state(self, door: str):
+    async def subscribe_door_state(self, door: str, namespace=None):
         for frame in self._frames_by_door.get(door, []):
             if self._closed:
                 return
@@ -42,7 +42,8 @@ class FakeHttpClient:
     def __init__(self) -> None:
         self.posts: list[dict] = []
 
-    def post_door_request(self, *, door, requester_id, requested_mode, execution_id):
+    def post_door_request(self, *, door, requester_id, requested_mode, execution_id,
+                          namespace=None):
         self.posts.append({
             "door": door,
             "requester_id": requester_id,

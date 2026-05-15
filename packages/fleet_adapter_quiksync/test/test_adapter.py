@@ -114,7 +114,7 @@ async def test_run_dry_dispatches_frames_to_handles():
         def close(self) -> None:
             self._closed = True
 
-        async def subscribe_fleet_state(self, fleet: str):
+        async def subscribe_fleet_state(self, fleet: str, namespace=None):
             yield {
                 "name": "service_robots",
                 "robots": [
@@ -146,7 +146,7 @@ async def test_run_dry_returns_2_when_no_frames():
         def close(self) -> None:
             self._closed = True
 
-        async def subscribe_fleet_state(self, fleet: str):
+        async def subscribe_fleet_state(self, fleet: str, namespace=None):
             return
             yield  # unreachable; makes this an async generator
 

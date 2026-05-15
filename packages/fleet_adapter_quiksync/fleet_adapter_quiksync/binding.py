@@ -221,6 +221,7 @@ def bind_from_yaml(
     fleet_name: str,
     node_name: str = "fleet_adapter_quiksync",
     server_uri: Optional[str] = None,
+    namespace: Optional[str] = None,
 ) -> tuple[Any, Any]:
     """Bootstrap the Adapter from a YAML config + nav graph file.
 
@@ -284,7 +285,9 @@ def bind_from_yaml(
             handles[robot_name] = handle
 
         robot_config = fleet_config.get_known_robot_configuration(robot_name)
-        callbacks = _build_robot_callbacks(rmf_adapter, http, fleet_name, robot_name, handle)
+        callbacks = _build_robot_callbacks(
+            rmf_adapter, http, fleet_name, robot_name, handle, namespace=namespace,
+        )
 
         log.info("preparing robot=%r for lazy registration (YAML mode)", robot_name)
         handle.prepare_registration(fleet_handle, robot_config, callbacks)
@@ -302,6 +305,7 @@ def bind_easy_full_control(
     http: QuikSyncHttpClient,
     node_name: str = "fleet_adapter_quiksync",
     server_uri: Optional[str] = None,
+    namespace: Optional[str] = None,
 ) -> tuple[Any, Any]:
     """Bootstrap the Adapter + EasyFullControl fleet + prepare robots
     for lazy registration.
@@ -358,7 +362,9 @@ def bind_easy_full_control(
             continue
 
         robot_config = _robot_configuration(rmf_adapter, robot)
-        callbacks = _build_robot_callbacks(rmf_adapter, http, fleet_name, name, handle)
+        callbacks = _build_robot_callbacks(
+            rmf_adapter, http, fleet_name, name, handle, namespace=namespace,
+        )
 
         log.info("preparing robot=%r for lazy registration in fleet=%r", name, fleet_name)
         handle.prepare_registration(fleet_handle, robot_config, callbacks)
@@ -388,6 +394,7 @@ def _build_robot_callbacks(
     fleet: str,
     robot: str,
     handle: RobotHandle,
+    namespace: Optional[str] = None,
 ) -> Any:
     """Wrap our pure callback factories in an rmf_adapter.RobotCallbacks.
 
@@ -395,9 +402,9 @@ def _build_robot_callbacks(
     fleet_adapter_template pattern; kwarg-form availability varies
     across rmf_adapter binding versions.
     """
-    navigate = make_navigate_callback(http, fleet, robot, handle)
-    stop = make_stop_callback(http, fleet, robot, handle)
-    action_executor = make_action_executor(http, fleet, robot, handle)
+    navigate = make_navigate_callback(http, fleet, robot, handle, namespace=namespace)
+    stop = make_stop_callback(http, fleet, robot, handle, namespace=namespace)
+    action_executor = make_action_executor(http, fleet, robot, handle, namespace=namespace)
     return rmf_adapter.easy_full_control.RobotCallbacks(
         navigate,
         stop,
