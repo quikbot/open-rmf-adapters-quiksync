@@ -1,6 +1,6 @@
-# open-rmf-adapters-quiksync
+# Open-RMF Adapters for QuikSync
 
-ROS 2 [Open-RMF](https://www.open-rmf.org/) adapters for the **QuikSync** platform — exposing QuikSync-managed robots, doors, and lifts to a customer's Open-RMF deployment as native peers.
+ROS 2 [Open-RMF](https://www.open-rmf.org/) adapters for the [QuikSync](https://quikbot.ai) platform — exposing QuikSync-managed robots, doors, and lifts to a customer's Open-RMF deployment as native peers.
 
 The adapters consume the **QuikSync Open-RMF Connector** — an HTTP + WSS
 surface served from the customer's QuikSync host — and surface the
@@ -329,7 +329,7 @@ integration questions), see the
 [Open-RMF support guidelines](https://openrmf.readthedocs.io/en/latest/support/index.html).
 
 For support specific to QuikSync — adapter behaviour, API contract questions,
-new fleet onboarding — contact QuikSync at
+new fleet onboarding — contact [QuikSync](https://quikbot.ai) at
 [tech@quikbot.ai](mailto:tech@quikbot.ai).
 
 ## License
