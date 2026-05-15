@@ -3,24 +3,22 @@
   Combined launch for all QuikSync Open-RMF adapters (fleet, door, lift).
 
   Selects which adapter roles to start via `roles` (comma-separated list).
-  In v1 only the fleet adapter has real implementation; door + lift are
-  v2-stubs that idle. Customers running v1 can leave defaults; when v2
-  ships and door/lift dispatch is enabled on the QuikSync side, re-launch
-  with `roles:=fleet,door,lift`.
+  Each adapter is independent: launch the role(s) you need based on which
+  resource types the QuikSync server exposes for your deployment.
 
   Args:
     roles         — comma-separated roles to start (default: fleet)
     fleet_config  — path to fleet_adapter_quiksync YAML config
-    door_config   — path to door_adapter_quiksync YAML config (v2)
-    lift_config   — path to lift_adapter_quiksync YAML config (v2)
+    door_config   — path to door_adapter_quiksync YAML config
+    lift_config   — path to lift_adapter_quiksync YAML config
     log_level     — Python logging level
 
   Examples:
-    # v1: fleet only
+    # fleet only
     ros2 launch open-rmf-adapters-quiksync quiksync_all.launch.xml \
       fleet_config:=/etc/quiksync/fleet.yaml
 
-    # v2 (when door+lift land): all three
+    # all three roles
     ros2 launch open-rmf-adapters-quiksync quiksync_all.launch.xml \
       roles:=fleet,door,lift \
       fleet_config:=/etc/quiksync/fleet.yaml \
@@ -40,14 +38,13 @@
     <arg name="log_level" value="$(var log_level)"/>
   </include>
 
-  <!-- door + lift stubs idle in v1; uncomment when v2 lands real impls
   <include if="$(eval '\'door\' in \'$(var roles)\'.split(\',\')')"
            file="$(find-pkg-share door_adapter_quiksync)/launch/door_adapter_quiksync.launch.xml">
     <arg name="config" value="$(var door_config)"/>
   </include>
+
   <include if="$(eval '\'lift\' in \'$(var roles)\'.split(\',\')')"
            file="$(find-pkg-share lift_adapter_quiksync)/launch/lift_adapter_quiksync.launch.xml">
     <arg name="config" value="$(var lift_config)"/>
   </include>
-  -->
 </launch>

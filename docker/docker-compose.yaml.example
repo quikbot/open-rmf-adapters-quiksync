@@ -3,10 +3,9 @@
 # Copy to docker-compose.yaml on the customer's Open-RMF deployment host;
 # fill in the secret content + config path; start with `docker compose up -d`.
 #
-# Architecture: one container per adapter role. The fleet adapter (v1)
-# runs the real workload; door + lift adapters are v2 (start the
-# containers but they idle in v1 — saves having to alter compose
-# topology when v2 lands).
+# Architecture: one container per adapter role. Each adapter is independent.
+# Drop the role(s) you don't need based on which resource types the
+# QuikSync server exposes for your deployment.
 
 services:
   fleet-adapter-quiksync:
@@ -23,33 +22,31 @@ services:
     secrets:
       - quiksync_adapter_credentials
 
-  # v2 — uncomment when the door adapter ships real logic
-  # door-adapter-quiksync:
-  #   image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
-  #   command: ["ros2", "run", "door_adapter_quiksync", "door_adapter_quiksync"]
-  #   restart: unless-stopped
-  #   network_mode: host
-  #   environment:
-  #     DOOR_CONFIG: /etc/quiksync/doors.yaml
-  #     ROS_DOMAIN_ID: 0
-  #   volumes:
-  #     - /etc/quiksync:/etc/quiksync:ro
-  #   secrets:
-  #     - quiksync_adapter_credentials
+  door-adapter-quiksync:
+    image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
+    command: ["ros2", "run", "door_adapter_quiksync", "door_adapter_quiksync"]
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      DOOR_CONFIG: /etc/quiksync/doors.yaml
+      ROS_DOMAIN_ID: 0
+    volumes:
+      - /etc/quiksync:/etc/quiksync:ro
+    secrets:
+      - quiksync_adapter_credentials
 
-  # v2 — uncomment when the lift adapter ships real logic
-  # lift-adapter-quiksync:
-  #   image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
-  #   command: ["ros2", "run", "lift_adapter_quiksync", "lift_adapter_quiksync"]
-  #   restart: unless-stopped
-  #   network_mode: host
-  #   environment:
-  #     LIFT_CONFIG: /etc/quiksync/lifts.yaml
-  #     ROS_DOMAIN_ID: 0
-  #   volumes:
-  #     - /etc/quiksync:/etc/quiksync:ro
-  #   secrets:
-  #     - quiksync_adapter_credentials
+  lift-adapter-quiksync:
+    image: ghcr.io/quikbot/open-rmf-adapters-quiksync:latest
+    command: ["ros2", "run", "lift_adapter_quiksync", "lift_adapter_quiksync"]
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LIFT_CONFIG: /etc/quiksync/lifts.yaml
+      ROS_DOMAIN_ID: 0
+    volumes:
+      - /etc/quiksync:/etc/quiksync:ro
+    secrets:
+      - quiksync_adapter_credentials
 
 secrets:
   quiksync_adapter_credentials:
