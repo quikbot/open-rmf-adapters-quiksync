@@ -146,6 +146,7 @@ def test_navigate_dispatches_post_navigate():
         destination={"x": 1.0, "y": 2.0, "yaw": 0.5, "map_name": "L1"},
         dock_name=None,
         speed_limit=None,
+        namespace=None,
     )
     # current_activity threaded through so the state pump can correlate
     assert handle._current_activity == "rmf-activity-1"
@@ -210,7 +211,9 @@ def test_stop_dispatches_post_stop():
 
     stop(None)
 
-    http.post_stop.assert_called_once_with(fleet="f", robot="r1", execution_id="stop-eid")
+    http.post_stop.assert_called_once_with(
+        fleet="f", robot="r1", execution_id="stop-eid", namespace=None,
+    )
 
 
 def test_stop_swallows_errors():
@@ -251,7 +254,7 @@ def test_action_executor_dispatches_post_perform_action():
 
     http.post_perform_action.assert_called_once_with(
         fleet="f", robot="r1", execution_id="act-eid",
-        category="clean", description=description,
+        category="clean", description=description, namespace=None,
     )
     assert handle._current_activity == "rmf-act-1"
 

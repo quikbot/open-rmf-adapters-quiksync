@@ -13,6 +13,7 @@ quiksync:
   doors:                                 # required list of door IDs
     - door_alpha
     - door_beta
+  namespace: Test                        # optional; required only for multi-namespace orgs
   state_subscribe_reconnect_seconds: 1.0
   door_states_topic: door_states         # optional ROS topic remap
   door_requests_topic: door_requests     # optional ROS topic remap
@@ -44,7 +45,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -72,6 +73,11 @@ class DoorAdapterConfig:
     # ROS topic remaps. Defaults match the rmf community convention.
     door_states_topic: str = "door_states"
     door_requests_topic: str = "door_requests"
+    # Multi-namespace scoping (optional). Set when the QuikSync org hosts
+    # multiple namespaces side-by-side and this adapter manages doors in
+    # only one of them. Appended as `?namespace=<value>` on every REST +
+    # WSS call. Leave unset for single-namespace orgs.
+    namespace: Optional[str] = None
 
     # ----- Construction -----
 

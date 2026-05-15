@@ -12,6 +12,7 @@ quiksync:
   auth0_organization: ...
   lifts:                                 # required list of lift IDs
     - lift_alpha
+  namespace: Test                        # optional; required only for multi-namespace orgs
   state_subscribe_reconnect_seconds: 1.0
   session_ttl_seconds: 3600.0            # session-manager TTL
   lift_states_topic: lift_states         # optional ROS topic remap
@@ -48,7 +49,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -78,6 +79,11 @@ class LiftAdapterConfig:
     # ROS topic remaps. Defaults match the rmf community convention.
     lift_states_topic: str = "lift_states"
     lift_requests_topic: str = "lift_requests"
+    # Multi-namespace scoping (optional). Set when the QuikSync org hosts
+    # multiple namespaces side-by-side and this adapter manages lifts in
+    # only one of them. Appended as `?namespace=<value>` on every REST +
+    # WSS call. Leave unset for single-namespace orgs.
+    namespace: Optional[str] = None
 
     # ----- Construction -----
 

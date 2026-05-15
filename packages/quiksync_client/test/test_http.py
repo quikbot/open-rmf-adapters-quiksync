@@ -29,9 +29,11 @@ def make_http(monkeypatch, responses: list[httpx.Response]) -> QuikSyncHttpClien
     to return `responses` in order on successive .request() calls."""
     iterator = iter(responses)
     captured_headers: list[dict] = []
+    captured_params: list[dict] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured_headers.append(dict(headers or {}))
+        captured_params.append(dict(params or {}))
         return next(iterator)
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
@@ -42,6 +44,7 @@ def make_http(monkeypatch, responses: list[httpx.Response]) -> QuikSyncHttpClien
     )
     client = QuikSyncHttpClient(config, make_auth())
     client._captured_headers = captured_headers  # type: ignore[attr-defined]
+    client._captured_params = captured_params  # type: ignore[attr-defined]
     return client
 
 
@@ -81,7 +84,7 @@ def test_401_triggers_force_refresh_and_one_retry(monkeypatch):
     ]
     iterator = iter(sequence)
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         return next(iterator)
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
@@ -128,7 +131,7 @@ def test_503_first_then_200_returns_success(monkeypatch):
 def test_connection_error_retries_then_raises(monkeypatch):
     auth = make_auth()
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         raise httpx.ConnectError("network down")
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
@@ -144,7 +147,7 @@ def test_connection_error_retries_then_raises(monkeypatch):
 def test_post_navigate_includes_body(monkeypatch):
     captured_bodies: list[dict] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured_bodies.append(json or {})
         return httpx.Response(status_code=202, json={"task_id": "t1", "execution_id": "e1", "status": "queued"})
 
@@ -171,7 +174,7 @@ def test_post_navigate_includes_body(monkeypatch):
 def test_post_perform_action_includes_body(monkeypatch):
     captured: list[tuple[str, str, dict]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path, json or {}))
         return httpx.Response(status_code=202, json={"task_id": "act-t1", "execution_id": "act-e1", "status": "queued"})
 
@@ -201,7 +204,7 @@ def test_post_perform_action_includes_body(monkeypatch):
 def test_post_perform_action_omits_deadline_when_unset(monkeypatch):
     captured_bodies: list[dict] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured_bodies.append(json or {})
         return httpx.Response(status_code=202, json={})
 
@@ -226,7 +229,7 @@ def test_post_perform_action_omits_deadline_when_unset(monkeypatch):
 def test_get_door_state_path_and_method(monkeypatch):
     captured: list[tuple[str, str]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path))
         return httpx.Response(status_code=200, json={
             "door_name": "door_alpha", "door_time": 1234,
@@ -247,7 +250,7 @@ def test_get_door_state_path_and_method(monkeypatch):
 def test_post_door_request_body_and_method(monkeypatch):
     captured: list[tuple[str, str, dict]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path, json or {}))
         return httpx.Response(status_code=202, json={"status": "queued"})
 
@@ -279,7 +282,7 @@ def test_post_door_request_body_and_method(monkeypatch):
 def test_get_lift_state_path_and_method(monkeypatch):
     captured: list[tuple[str, str]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path))
         return httpx.Response(status_code=200, json={
             "lift_name": "lift_alpha", "lift_time": 1234,
@@ -303,7 +306,7 @@ def test_get_lift_state_path_and_method(monkeypatch):
 def test_post_lift_request_body_and_method(monkeypatch):
     captured: list[tuple[str, str, dict]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path, json or {}))
         return httpx.Response(status_code=202, json={"status": "queued"})
 
@@ -336,7 +339,7 @@ def test_post_lift_request_body_and_method(monkeypatch):
 def test_delete_lift_session_path_and_method(monkeypatch):
     captured: list[tuple[str, str]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path))
         return httpx.Response(status_code=200, json={"status": "cleared"})
 
@@ -359,7 +362,7 @@ def test_post_lift_request_409_surfaces_holding_session(monkeypatch):
         "holding_session_id": "rmf:robot-2",
     })
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         return response
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
@@ -374,5 +377,80 @@ def test_post_lift_request_409_surfaces_holding_session(monkeypatch):
             )
         assert exc.value.status == 409
         assert exc.value.body["holding_session_id"] == "rmf:robot-2"
+    finally:
+        client.close()
+
+
+# ----- namespace query param -----
+
+
+def test_namespace_omitted_when_unset(monkeypatch):
+    """When `namespace` is not passed, no `?namespace=...` query param
+    is sent — preserves back-compat against servers that don't filter."""
+    response = httpx.Response(status_code=200, json={"fleets": [], "doors": [], "lifts": []})
+    client = make_http(monkeypatch, [response])
+    try:
+        client.get_discovery()
+        assert client._captured_params == [{}]  # type: ignore[attr-defined]
+    finally:
+        client.close()
+
+
+def test_namespace_propagates_on_discovery(monkeypatch):
+    response = httpx.Response(status_code=200, json={"fleets": [], "doors": [], "lifts": []})
+    client = make_http(monkeypatch, [response])
+    try:
+        client.get_discovery(namespace="Test")
+        assert client._captured_params == [{"namespace": "Test"}]  # type: ignore[attr-defined]
+    finally:
+        client.close()
+
+
+def test_namespace_propagates_on_door_request(monkeypatch):
+    response = httpx.Response(status_code=200, json={})
+    client = make_http(monkeypatch, [response])
+    try:
+        client.post_door_request(
+            door="Main Gate",
+            requester_id="rmf:robot-1",
+            requested_mode="OPEN",
+            execution_id="exec-1",
+            namespace="Test",
+        )
+        assert client._captured_params == [{"namespace": "Test"}]  # type: ignore[attr-defined]
+    finally:
+        client.close()
+
+
+def test_namespace_propagates_on_lift_request(monkeypatch):
+    response = httpx.Response(status_code=200, json={})
+    client = make_http(monkeypatch, [response])
+    try:
+        client.post_lift_request(
+            lift="Tower A/Lift 1",
+            session_id="sess-1",
+            request_type="AGV_MODE",
+            destination_floor="3",
+            door_state="OPEN",
+            execution_id="exec-1",
+            namespace="Test",
+        )
+        assert client._captured_params == [{"namespace": "Test"}]  # type: ignore[attr-defined]
+    finally:
+        client.close()
+
+
+def test_namespace_propagates_on_navigate(monkeypatch):
+    response = httpx.Response(status_code=200, json={"task_id": "t1"})
+    client = make_http(monkeypatch, [response])
+    try:
+        client.post_navigate(
+            fleet="service_robots",
+            robot="robot-1",
+            execution_id="exec-1",
+            destination={"x": 1.0, "y": 2.0, "yaw": 0.0, "map_name": "L1"},
+            namespace="Test",
+        )
+        assert client._captured_params == [{"namespace": "Test"}]  # type: ignore[attr-defined]
     finally:
         client.close()

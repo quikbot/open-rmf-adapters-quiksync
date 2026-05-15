@@ -20,7 +20,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_door_state(self, door: str):
+    async def subscribe_door_state(self, door: str, namespace=None):
         for frame in self._frames:
             if self._closed:
                 return

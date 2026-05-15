@@ -114,7 +114,7 @@ async def test_run_dry_dispatches_frames_to_handles():
         def close(self) -> None:
             self._closed = True
 
-        async def subscribe_fleet_state(self, fleet: str):
+        async def subscribe_fleet_state(self, fleet: str, namespace=None):
             yield {
                 "name": "service_robots",
                 "robots": [
@@ -146,7 +146,7 @@ async def test_run_dry_returns_2_when_no_frames():
         def close(self) -> None:
             self._closed = True
 
-        async def subscribe_fleet_state(self, fleet: str):
+        async def subscribe_fleet_state(self, fleet: str, namespace=None):
             return
             yield  # unreachable; makes this an async generator
 
@@ -175,7 +175,7 @@ def test_main_with_yaml_config_attempts_discovery_fetch(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncHttpClient
 
-    def boom(self):
+    def boom(self, namespace=None):
         raise RuntimeError("network down")
 
     monkeypatch.setattr(QuikSyncHttpClient, "get_discovery", boom)
@@ -191,7 +191,7 @@ def test_main_returns_4_when_fleet_not_in_discovery(monkeypatch, tmp_path):
 
     from quiksync_client import QuikSyncHttpClient
 
-    def empty_discovery(self):
+    def empty_discovery(self, namespace=None):
         return {"fleets": [], "doors": [], "lifts": []}
 
     monkeypatch.setattr(QuikSyncHttpClient, "get_discovery", empty_discovery)

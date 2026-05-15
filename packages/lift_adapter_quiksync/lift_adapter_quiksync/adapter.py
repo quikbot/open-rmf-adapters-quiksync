@@ -233,6 +233,7 @@ def _run_full(
             msg_module=msgs,
             publish_msg=publisher.publish,
             log_warning=ros_node.get_logger().warning,
+            namespace=config.namespace,
         )
         ros_node.create_subscription(
             msgs.LiftRequest,

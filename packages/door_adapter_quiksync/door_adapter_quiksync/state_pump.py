@@ -33,10 +33,12 @@ class DoorStatePump:
         ws_client: QuikSyncWsClient,
         door_name: str,
         on_state: DoorStateCallback,
+        namespace: Optional[str] = None,
     ) -> None:
         self._ws = ws_client
         self._door = door_name
         self._on_state = on_state
+        self._namespace = namespace
         self._task: Optional[asyncio.Task] = None
         self._stop_requested = False
         self._frames_seen = 0
@@ -75,7 +77,7 @@ class DoorStatePump:
 
     async def _run(self) -> None:
         try:
-            async for frame in self._ws.subscribe_door_state(self._door):
+            async for frame in self._ws.subscribe_door_state(self._door, namespace=self._namespace):
                 if self._stop_requested:
                     return
                 await self._dispatch_frame(frame)

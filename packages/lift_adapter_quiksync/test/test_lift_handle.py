@@ -24,7 +24,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_lift_state(self, lift: str):
+    async def subscribe_lift_state(self, lift: str, namespace=None):
         for frame in self._frames:
             if self._closed:
                 return
@@ -37,7 +37,8 @@ class FakeHttpClient:
         self.raises: Exception | None = None
 
     def post_lift_request(self, *, lift, session_id, request_type,
-                          destination_floor, door_state, execution_id):
+                          destination_floor, door_state, execution_id,
+                          namespace=None):
         if self.raises is not None:
             raise self.raises
         record = {
@@ -47,6 +48,7 @@ class FakeHttpClient:
             "destination_floor": destination_floor,
             "door_state": door_state,
             "execution_id": execution_id,
+            "namespace": namespace,
         }
         self.posts.append(record)
         return {"status": "accepted"}
@@ -211,8 +213,26 @@ def test_dispatch_agv_mode_posts_correct_body():
         "destination_floor": "L3",
         "door_state": "OPEN",
         "execution_id": "exec-1",
+        "namespace": None,
     }]
     assert handle.requests_dispatched() == 1
+
+
+def test_dispatch_forwards_namespace_when_configured():
+    """A LiftHandle with `namespace=X` passes it through on every dispatch."""
+    published: list[dict] = []
+    http = FakeHttpClient()
+    sm = LiftSessionManager()
+    handle = LiftHandle(
+        "lift_alpha", http, FakeWsClient([]),
+        published.append, sm,
+        namespace="Test",
+    )
+    handle.dispatch_request(
+        make_ros_request(request_type=2, destination_floor="L3", door_state=2),
+        execution_id="exec-ns",
+    )
+    assert http.posts[0]["namespace"] == "Test"
 
 
 def test_dispatch_end_session_releases_local_state():

@@ -22,7 +22,7 @@ class FakeWsClient:
     def close(self) -> None:
         self._closed = True
 
-    async def subscribe_lift_state(self, lift: str):
+    async def subscribe_lift_state(self, lift: str, namespace=None):
         for frame in self._frames_by_lift.get(lift, []):
             if self._closed:
                 return
