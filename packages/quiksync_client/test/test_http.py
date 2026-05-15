@@ -84,7 +84,7 @@ def test_401_triggers_force_refresh_and_one_retry(monkeypatch):
     ]
     iterator = iter(sequence)
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         return next(iterator)
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
@@ -131,7 +131,7 @@ def test_503_first_then_200_returns_success(monkeypatch):
 def test_connection_error_retries_then_raises(monkeypatch):
     auth = make_auth()
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         raise httpx.ConnectError("network down")
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
@@ -147,7 +147,7 @@ def test_connection_error_retries_then_raises(monkeypatch):
 def test_post_navigate_includes_body(monkeypatch):
     captured_bodies: list[dict] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured_bodies.append(json or {})
         return httpx.Response(status_code=202, json={"task_id": "t1", "execution_id": "e1", "status": "queued"})
 
@@ -174,7 +174,7 @@ def test_post_navigate_includes_body(monkeypatch):
 def test_post_perform_action_includes_body(monkeypatch):
     captured: list[tuple[str, str, dict]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path, json or {}))
         return httpx.Response(status_code=202, json={"task_id": "act-t1", "execution_id": "act-e1", "status": "queued"})
 
@@ -204,7 +204,7 @@ def test_post_perform_action_includes_body(monkeypatch):
 def test_post_perform_action_omits_deadline_when_unset(monkeypatch):
     captured_bodies: list[dict] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured_bodies.append(json or {})
         return httpx.Response(status_code=202, json={})
 
@@ -229,7 +229,7 @@ def test_post_perform_action_omits_deadline_when_unset(monkeypatch):
 def test_get_door_state_path_and_method(monkeypatch):
     captured: list[tuple[str, str]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path))
         return httpx.Response(status_code=200, json={
             "door_name": "door_alpha", "door_time": 1234,
@@ -250,7 +250,7 @@ def test_get_door_state_path_and_method(monkeypatch):
 def test_post_door_request_body_and_method(monkeypatch):
     captured: list[tuple[str, str, dict]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path, json or {}))
         return httpx.Response(status_code=202, json={"status": "queued"})
 
@@ -282,7 +282,7 @@ def test_post_door_request_body_and_method(monkeypatch):
 def test_get_lift_state_path_and_method(monkeypatch):
     captured: list[tuple[str, str]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path))
         return httpx.Response(status_code=200, json={
             "lift_name": "lift_alpha", "lift_time": 1234,
@@ -306,7 +306,7 @@ def test_get_lift_state_path_and_method(monkeypatch):
 def test_post_lift_request_body_and_method(monkeypatch):
     captured: list[tuple[str, str, dict]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path, json or {}))
         return httpx.Response(status_code=202, json={"status": "queued"})
 
@@ -339,7 +339,7 @@ def test_post_lift_request_body_and_method(monkeypatch):
 def test_delete_lift_session_path_and_method(monkeypatch):
     captured: list[tuple[str, str]] = []
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         captured.append((method, path))
         return httpx.Response(status_code=200, json={"status": "cleared"})
 
@@ -362,7 +362,7 @@ def test_post_lift_request_409_surfaces_holding_session(monkeypatch):
         "holding_session_id": "rmf:robot-2",
     })
 
-    def fake_request(self, method, path, headers=None, json=None):
+    def fake_request(self, method, path, headers=None, json=None, params=None):
         return response
 
     monkeypatch.setattr(httpx.Client, "request", fake_request)
