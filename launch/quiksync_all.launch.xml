@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<!--
+  Combined launch for all QuikSync Open-RMF adapters (fleet, door, lift).
+
+  Selects which adapter roles to start via `roles` (comma-separated list).
+  Each adapter is independent: launch the role(s) you need based on which
+  resource types the QuikSync server exposes for your deployment.
+
+  Args:
+    roles         — comma-separated roles to start (default: fleet)
+    fleet_config  — path to fleet_adapter_quiksync YAML config
+    door_config   — path to door_adapter_quiksync YAML config
+    lift_config   — path to lift_adapter_quiksync YAML config
+    log_level     — Python logging level
+
+  Examples:
+    # fleet only
+    ros2 launch open-rmf-adapters-quiksync quiksync_all.launch.xml \
+      fleet_config:=/etc/quiksync/fleet.yaml
+
+    # all three roles
+    ros2 launch open-rmf-adapters-quiksync quiksync_all.launch.xml \
+      roles:=fleet,door,lift \
+      fleet_config:=/etc/quiksync/fleet.yaml \
+      door_config:=/etc/quiksync/doors.yaml \
+      lift_config:=/etc/quiksync/lifts.yaml
+-->
+<launch>
+  <arg name="roles" default="fleet"/>
+  <arg name="fleet_config" default=""/>
+  <arg name="door_config" default=""/>
+  <arg name="lift_config" default=""/>
+  <arg name="log_level" default="INFO"/>
+
+  <include if="$(eval '\'fleet\' in \'$(var roles)\'.split(\',\')')"
+           file="$(find-pkg-share fleet_adapter_quiksync)/launch/fleet_adapter_quiksync.launch.xml">
+    <arg name="config" value="$(var fleet_config)"/>
+    <arg name="log_level" value="$(var log_level)"/>
+  </include>
+
+  <include if="$(eval '\'door\' in \'$(var roles)\'.split(\',\')')"
+           file="$(find-pkg-share door_adapter_quiksync)/launch/door_adapter_quiksync.launch.xml">
+    <arg name="config" value="$(var door_config)"/>
+  </include>
+
+  <include if="$(eval '\'lift\' in \'$(var roles)\'.split(\',\')')"
+           file="$(find-pkg-share lift_adapter_quiksync)/launch/lift_adapter_quiksync.launch.xml">
+    <arg name="config" value="$(var lift_config)"/>
+  </include>
+</launch>

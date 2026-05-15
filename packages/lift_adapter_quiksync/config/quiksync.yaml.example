@@ -1,0 +1,41 @@
+# lift_adapter_quiksync — config template
+#
+# A single top-level `quiksync:` block carries Auth0 + endpoint wiring,
+# the list of lifts this adapter instance owns, and the session-manager
+# TTL.
+#
+# Copy to a customer-side path (e.g. /etc/quiksync/lift.yaml) and fill in
+# the placeholder values from the M2M client provisioned by QuikSync
+# ops. The Auth0 client_secret is best provisioned via Docker secret
+# mount; reference it via `auth0_client_secret_file` instead of inlining.
+#
+# Then launch with:
+#
+#   ros2 launch lift_adapter_quiksync lift_adapter_quiksync.launch.xml \
+#     config:=/etc/quiksync/lift.yaml
+
+quiksync:
+  # QuikSync HTTPS endpoint
+  base_url: https://<your-quiksync-host>
+
+  # Auth0 M2M client (provisioned per customer at onboarding)
+  auth0_tenant: <your-auth0-tenant>.auth0.com
+  auth0_audience: https://<your-quiksync-api-audience>/open-rmf
+  auth0_client_id: <m2m-client-id-from-quiksync-ops>
+  auth0_client_secret_file: /run/secrets/quiksync_adapter_credentials
+  auth0_organization: <auth0-org-id>
+
+  # Lifts this adapter owns. Each ID must match a lift declared in your
+  # QuikSync tenant and in your rmf `building_map.yaml`. One rclpy node
+  # manages all lifts listed here.
+  lifts:
+    - lift_alpha
+
+  # Optional tuning knobs
+  state_subscribe_reconnect_seconds: 1.0
+  # Session-manager TTL — mirrors the server-side session-lock TTL.
+  session_ttl_seconds: 3600.0
+
+  # Optional ROS topic remaps. Defaults match the rmf community convention.
+  # lift_states_topic: lift_states
+  # lift_requests_topic: lift_requests

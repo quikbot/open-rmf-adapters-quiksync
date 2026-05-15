@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "include-v-in-tag": true,
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "initial-version": "0.1.0",
+      "extra-files": [
+        "packages/quiksync_client/setup.py",
+        "packages/quiksync_client/package.xml",
+        "packages/quiksync_client/quiksync_client/__init__.py",
+        "packages/fleet_adapter_quiksync/setup.py",
+        "packages/fleet_adapter_quiksync/package.xml",
+        "packages/fleet_adapter_quiksync/fleet_adapter_quiksync/__init__.py",
+        "packages/door_adapter_quiksync/setup.py",
+        "packages/door_adapter_quiksync/package.xml",
+        "packages/door_adapter_quiksync/door_adapter_quiksync/__init__.py",
+        "packages/lift_adapter_quiksync/setup.py",
+        "packages/lift_adapter_quiksync/package.xml",
+        "packages/lift_adapter_quiksync/lift_adapter_quiksync/__init__.py"
+      ],
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "refactor", "section": "Refactoring", "hidden": false },
+        { "type": "revert", "section": "Reverts" },
+        { "type": "docs", "hidden": true },
+        { "type": "chore", "hidden": true },
+        { "type": "ci", "hidden": true },
+        { "type": "test", "hidden": true },
+        { "type": "build", "hidden": true },
+        { "type": "style", "hidden": true }
+      ]
+    }
+  }
+}

@@ -1,0 +1,92 @@
+# fleet_adapter_quiksync — config template (YAML mode)
+#
+# Two top-level blocks:
+#
+# - `rmf_fleet:` — standard Open-RMF fleet config (matches the
+#   fleet_adapter_template schema). Parsed by
+#   `FleetConfiguration.from_config_files` natively. Tune per your
+#   deployment.
+# - `quiksync:` — QuikSync extension block. Auth0 + endpoint wiring +
+#   mode toggle.
+#
+# Copy to a customer-side path (e.g. /etc/quiksync/fleet.yaml) and fill
+# in the placeholder values from the M2M client provisioned by QuikSync
+# ops. The Auth0 client_secret is best provisioned via Docker secret
+# mount; reference it via `auth0_client_secret_file` instead of inlining.
+#
+# Then launch with both `config:=` and `nav_graph:=` (YAML mode):
+#
+#   ros2 launch fleet_adapter_quiksync fleet_adapter_quiksync.launch.xml \
+#     config:=/etc/quiksync/fleet.yaml \
+#     nav_graph:=/etc/quiksync/nav_graph.yaml
+#
+# To use dynamic mode (fetch fleet shape + building map from the
+# QuikSync Open-RMF Connector at startup), set
+# `quiksync.dynamic_mode: true` below and drop the entire `rmf_fleet:`
+# block. The `nav_graph:=` launch arg is then not required.
+
+# -----------------------------------------------------------------------------
+# Open-RMF fleet config (required in YAML mode; omit in dynamic mode)
+# -----------------------------------------------------------------------------
+rmf_fleet:
+  name: service_robots
+  limits:
+    linear: [0.5, 0.75]    # velocity (m/s), acceleration (m/s²)
+    angular: [0.6, 2.0]    # velocity (rad/s), acceleration (rad/s²)
+  profile:
+    footprint: 0.3         # radius (m)
+    vicinity: 0.5          # radius (m)
+  reversible: true
+  battery_system:
+    voltage: 12.0          # V
+    capacity: 24.0         # Ah
+    charging_current: 5.0  # A
+  mechanical_system:
+    mass: 20.0             # kg
+    moment_of_inertia: 10.0  # kg·m²
+    friction_coefficient: 0.22
+  ambient_system:
+    power: 20.0            # W
+  tool_system:
+    power: 0.0             # W
+  recharge_threshold: 0.10
+  recharge_soc: 1.0
+  publish_fleet_state: 10.0
+  account_for_battery_drain: true
+  task_capabilities:
+    loop: true
+    delivery: true
+  finishing_request: "park"   # "park" | "charge" | "nothing"
+  responsive_wait: true
+  robots:
+    service_robot_1:
+      charger: "charger_1"
+    service_robot_2:
+      charger: "charger_2"
+  robot_state_update_frequency: 10.0
+
+# -----------------------------------------------------------------------------
+# QuikSync extension block (always required)
+# -----------------------------------------------------------------------------
+quiksync:
+  # Mode selector. `false` (default) = YAML-driven; `true` = fetch
+  # /discovery + /building_map from the QuikSync Open-RMF Connector.
+  dynamic_mode: false
+
+  # QuikSync HTTPS endpoint
+  base_url: https://<your-quiksync-host>
+
+  # Auth0 M2M client (provisioned per customer at onboarding)
+  auth0_tenant: <your-auth0-tenant>.auth0.com
+  auth0_audience: https://<your-quiksync-api-audience>/open-rmf
+  auth0_client_id: <m2m-client-id-from-quiksync-ops>
+  auth0_client_secret_file: /run/secrets/quiksync_adapter_credentials
+  auth0_organization: <auth0-org-id>
+
+  # Must match a fleet declared in the customer's QuikSync tenant
+  # (and `rmf_fleet.name` above, in YAML mode).
+  fleet_name: service_robots
+
+  # Optional tuning knobs
+  update_interval_seconds: 0.5
+  state_subscribe_reconnect_seconds: 1.0
