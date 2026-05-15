@@ -219,6 +219,13 @@ class DoorHandle:
             execution_id=translated.execution_id,
             namespace=self._namespace,
         )
+        # Mirrors the fleet adapter's "<callback>(...) dispatched:" log
+        # signature so operators have a single observable signal across
+        # all three adapters' success paths.
+        log.info(
+            "DoorRequest dispatched: door=%s mode=%s execution_id=%s",
+            self._door_name, translated.requested_mode, translated.execution_id,
+        )
         self._requests_dispatched += 1
         return True
 

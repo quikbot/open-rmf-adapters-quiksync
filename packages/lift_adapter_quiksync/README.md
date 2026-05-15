@@ -76,6 +76,13 @@ LIFT_ADAPTER_BASE_URL=... LIFT_ADAPTER_LIFTS=lift_alpha \
   python3 -m lift_adapter_quiksync.adapter --dry-run
 ```
 
+## Smoke procedure
+
+See [`docs/smoke.md` §6](../../docs/smoke.md#6-lift-adapter-smoke) for
+the full live procedure: dry-run round-trip, ROS state-topic
+verification, AGV_MODE acquire/release, the adapter-side session-lock
+conflict test, and the failure-mode table.
+
 ## Wire-shape notes
 
 - WSS state frame:

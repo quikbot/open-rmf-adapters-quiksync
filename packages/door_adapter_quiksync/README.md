@@ -64,6 +64,12 @@ DOOR_ADAPTER_BASE_URL=... DOOR_ADAPTER_DOORS=door_alpha \
   python3 -m door_adapter_quiksync.adapter --dry-run
 ```
 
+## Smoke procedure
+
+See [`docs/smoke.md` §5](../../docs/smoke.md#5-door-adapter-smoke) for
+the full live procedure: dry-run round-trip, ROS state-topic
+verification, REST request dispatch, and the failure-mode table.
+
 ## Wire-shape notes
 
 - WSS state frame: `{door_name, door_time (unix ms), current_mode: {value}}`.
