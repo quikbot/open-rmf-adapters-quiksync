@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.2](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.2.1...v0.2.2) (2026-05-15)
+
+
+* trigger v0.2.2 release ([#38](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/38)) ([ad085c4](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/ad085c495b84a563dbce1455f49225a49cfcd3b7))
+
 ## [0.2.1](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.2.0...v0.2.1) (2026-05-15)
 
 

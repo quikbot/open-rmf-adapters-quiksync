@@ -23,7 +23,7 @@ from .http import (
 from .time_conv import millis_to_time_parts
 from .ws import QuikSyncWsClient, WsCircuitOpen, WsConfig
 
-__version__ = "0.2.1"  # x-release-please-version
+__version__ = "0.2.2"  # x-release-please-version
 
 __all__ = [
     "Auth0M2MClient",

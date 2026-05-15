@@ -19,4 +19,4 @@ Multi-namespace orgs scope each adapter process to one namespace via the
 REST + WSS call).
 """
 
-__version__ = "0.2.1"  # x-release-please-version
+__version__ = "0.2.2"  # x-release-please-version
