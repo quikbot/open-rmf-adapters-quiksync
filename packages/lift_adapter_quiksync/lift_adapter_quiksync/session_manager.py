@@ -1,11 +1,10 @@
 """Adapter-side per-lift session-occupant lock.
 
-The QuikSync server owns the authoritative session lock via a
-Hazelcast IMap (`open-rmf:lift-sessions`) per the v2 connector spec.
-This module is **defense-in-depth on top of that**, not a replacement.
+The QuikSync server owns the authoritative session lock; this module is
+**defense-in-depth on top of that**, not a replacement.
 
 Motivation (lifted from the Octa `lci-rmf-adapter` reference pattern):
-- The server enforces session uniqueness at the IMap level — concurrent
+- The server enforces session uniqueness centrally — concurrent
   `AGV_MODE` requests from different `session_id`s correctly produce
   one 202 + one 409.
 - Even so, the adapter ROS subscriber may receive a conflicting

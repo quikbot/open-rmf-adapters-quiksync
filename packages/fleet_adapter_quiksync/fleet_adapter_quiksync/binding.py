@@ -3,10 +3,9 @@
 Builds the `rmf_adapter` objects an `EasyFullControl` fleet needs —
 `VehicleTraits`, `BatterySystem`, `Graph`, `FleetConfiguration` — from
 the JSON shapes the QuikSync `/discovery` and `/building_map` endpoints
-return (per design §4.3.1 / §4.3.2). Wires per-robot `RobotCallbacks`
-into `Adapter.add_easy_full_control` and binds each `RobotHandle` to
-the returned `EasyRobotUpdateHandle` so state-pump pushes flow into
-Open-RMF.
+return. Wires per-robot `RobotCallbacks` into
+`Adapter.add_easy_full_control` and binds each `RobotHandle` to the
+returned `EasyRobotUpdateHandle` so state-pump pushes flow into Open-RMF.
 
 This module is **live-Open-RMF only**. `rmf_adapter` is not pip-installable
 (only available on deployments that have the `rmf_ros2` stack), so the
@@ -14,7 +13,7 @@ imports are gated behind a lazy `_try_import_rmf_adapter()`. CI cannot
 exercise the wire-up directly; tests verify structural correctness
 (argument shapes, error paths, RobotHandle.bind invocation) by
 injecting a fake `rmf_adapter` module via `sys.modules`. Live Open-RMF
-validation is documented in `docs/smoke.md` (§13.2 of the design doc).
+validation is covered in `docs/smoke.md`.
 
 Why this is a separate module from `adapter.py`:
 - `adapter.py` is the entry point; it imports both dry-run + binding
@@ -52,7 +51,7 @@ log = logging.getLogger("fleet_adapter_quiksync.binding")
 def build_vehicle_traits(rmf_adapter: Any, traits: dict[str, Any]) -> Any:
     """Build an `rmf_adapter.VehicleTraits` from a /discovery traits dict.
 
-    Wire shape (per design §4.3.1):
+    Wire shape:
     ```
     {
       "linear_velocity_m_s": 0.5,
@@ -96,7 +95,7 @@ def build_vehicle_traits(rmf_adapter: Any, traits: dict[str, Any]) -> Any:
 def build_battery_system(rmf_adapter: Any, battery: dict[str, Any]) -> Any:
     """Build an `rmf_adapter.BatterySystem` from a /discovery battery dict.
 
-    Wire shape (per design §4.3.1):
+    Wire shape:
     ```
     {
       "recharge_threshold": 0.20,
@@ -313,7 +312,7 @@ def bind_easy_full_control(
     Returns the (Adapter, FleetUpdateHandle) pair so the caller can
     spin the executor and shut down cleanly on signal.
 
-    Per design §6.2:
+    Design constraints honoured:
     - One adapter per process (one fleet); no shared FleetConfiguration.
     - Each robot listed in /discovery gets a `RobotConfiguration` +
       `RobotCallbacks(...)` and is wired up via

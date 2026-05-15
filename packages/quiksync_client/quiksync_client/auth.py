@@ -1,17 +1,16 @@
 """Auth0 M2M token client for QuikSync Open-RMF adapters.
 
 Mints + caches a `client_credentials` JWT against the customer's Auth0
-tenant. Audience pinned to `https://<your-quiksync-api-audience>/open-rmf`; scopes
-`open-rmf:read open-rmf:invoke`. Refresh discipline (per design §4.3.4 +
-§7.1):
+tenant. Audience pinned to `https://<your-quiksync-api-audience>/open-rmf`;
+scopes `open-rmf:read open-rmf:invoke`. Refresh discipline:
 
 - Cache the token + its `expires_at` after the first mint.
 - On every consumer call, return the cached token if it's still within
   80% of TTL — past that threshold, mint a fresh one (preemptive refresh
   ahead of expiry).
 - Add a jitter of ±10 minutes to the refresh threshold so multi-process
-  adapter cold-start (5 fleet × 1 door × 1 lift = 7 processes) doesn't
-  thunder Auth0 every TTL cycle.
+  adapter cold-start (e.g. 5 fleet × 1 door × 1 lift = 7 processes)
+  doesn't thunder Auth0 every TTL cycle.
 - After 3 consecutive mint failures, surface to caller — adapter logs +
   triggers the 401 circuit-breaker.
 """

@@ -7,10 +7,9 @@ name: release-please
 # across all four packages) per the `x-release-please-version`
 # markers in each file.
 #
-# Mirrors modules/open-rmf-bridge's release-please workflow in the
-# parent monorepo — same App-token pattern so Release PRs trigger
-# required CI checks (PRs authored by GITHUB_TOKEN don't, by GitHub
-# design; App-authored PRs do).
+# Uses the GitHub-App-token pattern so Release PRs trigger required CI
+# checks (PRs authored by GITHUB_TOKEN don't, by GitHub design;
+# App-authored PRs do).
 
 on:
   push:
