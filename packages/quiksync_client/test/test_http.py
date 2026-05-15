@@ -105,6 +105,30 @@ def test_401_triggers_force_refresh_and_one_retry(monkeypatch):
         client.close()
 
 
+def test_client_error_str_truncates_long_body():
+    """Defense-in-depth: a server-side error path that echoes
+    customer-supplied JSON back in the body must not bloat the log line
+    or leak unbounded PII via the exception's `str()` form. Full body
+    remains available via `.body` for structured logging."""
+    big_body = {"error": "validation_failed", "echo": "x" * 5000}
+    err = QuikSyncClientError(400, "validation_failed", big_body)
+    s = str(err)
+    # Bounded — the cap matches `_ERROR_BODY_LOG_LIMIT` (200) with a
+    # ~20-char "...(truncated)" suffix and the prefix.
+    assert len(s) < 400
+    assert "...(truncated)" in s
+    # Full body still on the attribute.
+    assert err.body == big_body
+    assert len(err.body["echo"]) == 5000
+
+
+def test_client_error_str_keeps_short_body_verbatim():
+    err = QuikSyncClientError(400, "coord_navigate_not_supported", {"error": "x", "message": "y"})
+    s = str(err)
+    assert "...(truncated)" not in s
+    assert "coord_navigate_not_supported" in s
+
+
 def test_500_retries_then_raises_server_error(monkeypatch):
     response = httpx.Response(status_code=500, text="boom")
     client = make_http(monkeypatch, [response, response, response])  # 3 = initial + 2 retries

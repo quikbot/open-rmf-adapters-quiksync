@@ -121,7 +121,7 @@ class Auth0M2MClient:
 
         if resp.status_code != 200:
             self._consecutive_failures += 1
-            body_preview = resp.text[:200] if resp.text else ""
+            body_preview = _redact_secrets(resp.text[:200] if resp.text else "", self._config)
             log.warning(
                 "Auth0 mint returned %d (%d consecutive): %s",
                 resp.status_code, self._consecutive_failures, body_preview,
@@ -150,3 +150,26 @@ class Auth0M2MClient:
     def close(self) -> None:
         if self._owns_client:
             self._client.close()
+
+
+def _redact_secrets(text: str, config: AuthConfig) -> str:
+    """Defensive scrub of any logged Auth0 response body.
+
+    Auth0's documented `invalid_grant` / `invalid_client` bodies should
+    NOT echo `client_secret`, but the upstream contract is not a hard
+    guarantee — verifying every possible 4xx variant requires touching
+    a live tenant. We unconditionally redact known secret material
+    from any body excerpt before logging so a future Auth0 change can't
+    silently turn the log line into a credential leak.
+
+    Currently scrubs the configured `client_secret`. `client_id` is
+    intentionally left in place; it's documented as identifying-only
+    (the secret is the credential) and obscuring it would make
+    troubleshooting wrong-client misconfig harder.
+    """
+    if not text:
+        return text
+    secret = config.client_secret
+    if secret and secret in text:
+        return text.replace(secret, "<redacted client_secret>")
+    return text
