@@ -25,6 +25,12 @@ def test_from_dict_minimal_ok():
     assert cfg.state_subscribe_reconnect_seconds == 1.0  # default
     assert cfg.door_states_topic == "door_states"  # default
     assert cfg.door_requests_topic == "door_requests"  # default
+    assert cfg.namespace is None
+
+
+def test_from_dict_with_namespace():
+    cfg = DoorAdapterConfig.from_dict({**REQUIRED, "namespace": "Test"})
+    assert cfg.namespace == "Test"
 
 
 def test_from_dict_missing_required_raises():

@@ -52,6 +52,7 @@ class FakeHttpClient:
             "requester_id": requester_id,
             "requested_mode": requested_mode,
             "execution_id": execution_id,
+            "namespace": namespace,
         }
         self.posts.append(record)
         return {"status": "accepted"}
@@ -194,9 +195,23 @@ def test_dispatch_request_open_posts_correct_body():
         "requester_id": "rmf:robot-1",
         "requested_mode": "OPEN",
         "execution_id": "exec-001",
+        "namespace": None,
     }]
     assert handle.requests_dispatched() == 1
     assert handle.requests_rejected() == 0
+
+
+def test_dispatch_request_forwards_namespace_when_configured():
+    """Handles constructed with `namespace=X` pass it to post_door_request."""
+    published: list[dict] = []
+    http = FakeHttpClient()
+    handle = DoorHandle(
+        "door_alpha", http, FakeWsClient([]),
+        published.append,
+        namespace="Test",
+    )
+    handle.dispatch_request(make_ros_request(), execution_id="exec-namespace")
+    assert http.posts[0]["namespace"] == "Test"
 
 
 def test_dispatch_request_closed_posts_correct_body():
