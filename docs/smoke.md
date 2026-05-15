@@ -219,9 +219,9 @@ docker run --rm \
 within 3 seconds. **Expected log lines:**
 
 ```
-door_adapter_quiksync.adapter: door_adapter_quiksync starting: doors=[...]
+door_adapter_quiksync.adapter: door_adapter_quiksync starting: doors=(...) base=... org=...
 quiksync_client.ws: WSS connected: /api/connector/ws/open-rmf/doors/<door>/state/subscribe
-door_adapter_quiksync.adapter: dry-run complete: doors=N frames=M ...
+door_adapter_quiksync.adapter: dry-run complete: frames=N (per door: {...})
 ```
 
 **Failure modes:**
@@ -272,7 +272,7 @@ ros2 topic pub --once /door_requests rmf_door_msgs/DoorRequest \
 
 **Expected sequence:**
 
-1. Adapter logs: `dispatching DoorRequest: door=<door> mode=OPEN execution_id=<uuid>`
+1. Adapter logs: `DoorRequest dispatched: door=<door> mode=OPEN execution_id=<uuid>`
 2. REST `POST /api/v1/connector/open-rmf/doors/<door>/request` returns 202.
 3. Server-side door driver acts on the request.
 4. Next WSS state frame reflects `current_mode.value=2` (OPEN) or
@@ -368,8 +368,8 @@ ros2 topic pub --once /lift_requests rmf_lift_msgs/LiftRequest \
 
 **Expected sequence:**
 
-1. Adapter logs: `dispatching LiftRequest: lift=<lift> request_type=AGV_MODE session=smoke-runbook-session execution_id=<uuid>`.
-2. `LiftSessionManager.try_acquire` succeeds (lift was free).
+1. `LiftSessionManager.try_acquire` succeeds (lift was free).
+2. Adapter logs: `LiftRequest dispatched: lift=<lift> request_type=AGV_MODE session=smoke-runbook-session execution_id=<uuid>`.
 3. REST `POST .../lifts/<lift>/request` returns 202.
 4. The lift driver starts moving toward L2.
 5. The next state frame carries `session_id: "smoke-runbook-session"`
@@ -390,9 +390,10 @@ ros2 topic pub --once /lift_requests rmf_lift_msgs/LiftRequest \
 
 **Expected sequence:**
 
-1. Adapter logs: `dispatching LiftRequest: lift=<lift> request_type=END_SESSION ...`.
-2. `LiftSessionManager.release` succeeds.
-3. REST POST returns 202.
+1. REST POST returns 202.
+2. `LiftSessionManager.release` succeeds (clears the local
+   `_requested` entry).
+3. Adapter logs: `LiftRequest dispatched: lift=<lift> request_type=END_SESSION session=smoke-runbook-session execution_id=<uuid>`.
 4. Next state frame carries `session_id: ""` (empty).
 5. The lift is free for the next AGV_MODE from any session.
 
@@ -417,10 +418,11 @@ ros2 topic pub --once /lift_requests rmf_lift_msgs/LiftRequest \
 
 **Expected:**
 
-1. Adapter logs:
+1. Adapter logs (INFO):
    `LiftRequest AGV_MODE for lift=<lift> session=other-fleet-session rejected by adapter-side session lock`.
 2. **No** REST POST is sent (verify by tailing the adapter log for the
-   absence of a `dispatching LiftRequest` line for this session).
+   absence of a `LiftRequest dispatched: ... session=other-fleet-session`
+   line — only the rejection line should appear for this session).
 3. Counter `requests_rejected` increments on the matching handle.
 
 End the session (`/lift_requests` with `request_type: {value: 1}`)

@@ -309,6 +309,14 @@ class LiftHandle:
         if translated.request_type in ("END_SESSION", "HUMAN_MODE"):
             self._session_manager.release(self._lift_name, translated.session_id)
 
+        # Mirrors the fleet adapter's "<callback>(...) dispatched:" log
+        # signature so operators have a single observable signal across
+        # all three adapters' success paths.
+        log.info(
+            "LiftRequest dispatched: lift=%s request_type=%s session=%s execution_id=%s",
+            self._lift_name, translated.request_type,
+            translated.session_id, translated.execution_id,
+        )
         self._requests_dispatched += 1
         return True
 
