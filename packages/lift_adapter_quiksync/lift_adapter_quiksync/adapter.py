@@ -45,6 +45,7 @@ from quiksync_client import (
 
 from .config import ConfigError, LiftAdapterConfig
 from .node import LiftAdapterNode
+from .session_manager import LiftSessionManager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("lift_adapter_quiksync.adapter")
@@ -234,6 +235,7 @@ def _run_full(
             publish_msg=publisher.publish,
             log_warning=ros_node.get_logger().warning,
             namespace=config.namespace,
+            session_manager=LiftSessionManager(ttl_seconds=config.session_ttl_seconds),
         )
         ros_node.create_subscription(
             msgs.LiftRequest,

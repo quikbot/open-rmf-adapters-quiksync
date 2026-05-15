@@ -24,6 +24,13 @@ for**; the server is the source of truth for **what's actually
 locked**. The two views are reconciled by `observe_server_state(...)`,
 which the lift handle calls on every state-push frame.
 
+TTL eviction: a `_requested[lift]` entry that hasn't been refreshed
+within `ttl_seconds` is treated as stale and evicted on the next
+`try_acquire` / `observe_server_state` call. This guards against a
+fleet that holds the lock locally but stops emitting state pushes
+(crashed mid-session without END_SESSION). `ttl_seconds <= 0` disables
+the eviction.
+
 Thread-safe via `threading.RLock` — `try_acquire` / `release` are
 called from the rclpy subscriber thread; `observe_server_state` is
 called from the asyncio state-pump thread.
@@ -33,6 +40,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Optional
 
 log = logging.getLogger("lift_adapter_quiksync.session_manager")
@@ -46,7 +54,7 @@ class LiftSessionManager:
     Two pieces of state per lift:
     - `_requested[lift]`: the `session_id` most recently passed to
       `try_acquire(lift, session_id)`. Set on RMF AGV_MODE; cleared on
-      END_SESSION or successful release.
+      END_SESSION, successful release, or TTL expiry.
     - `_server[lift]`: the `session_id` most recently observed in a
       server state-push frame (empty string = lift free, per the wire
       contract). Set by `observe_server_state(...)`.
@@ -62,10 +70,12 @@ class LiftSessionManager:
       this lift.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, ttl_seconds: float = 0.0) -> None:
         self._lock = threading.RLock()
         self._requested: dict[str, str] = {}
+        self._requested_at: dict[str, float] = {}
         self._server: dict[str, str] = {}
+        self._ttl_seconds = float(ttl_seconds)
 
     def try_acquire(self, lift: str, session_id: str) -> bool:
         """Attempt to claim `lift` for `session_id` on the adapter side.
@@ -83,18 +93,22 @@ class LiftSessionManager:
             log.warning("try_acquire called with empty session_id; rejecting")
             return False
         with self._lock:
+            self._evict_stale_locked(lift)
             current_request = self._requested.get(lift, "")
             current_server = self._server.get(lift, "")
             # Free → accept
             if not current_request and not current_server:
                 self._requested[lift] = session_id
+                self._requested_at[lift] = time.time()
                 return True
-            # Same session retrying → accept
+            # Same session retrying → accept (refresh TTL)
             if current_request == session_id:
+                self._requested_at[lift] = time.time()
                 return True
             # Server confirms we hold → accept (sync our request view too)
             if current_server == session_id:
                 self._requested[lift] = session_id
+                self._requested_at[lift] = time.time()
                 return True
             log.info(
                 "try_acquire(lift=%s, session_id=%s) rejected: held by "
@@ -118,6 +132,7 @@ class LiftSessionManager:
                 return True  # already free
             if current_request == session_id or current_server == session_id:
                 self._requested.pop(lift, None)
+                self._requested_at.pop(lift, None)
                 # Leave _server alone — it tracks what the server says,
                 # and will sync via the next state-push frame.
                 return True
@@ -142,6 +157,7 @@ class LiftSessionManager:
         """
         with self._lock:
             self._server[lift] = server_session_id or ""
+            self._evict_stale_locked(lift)
             current_request = self._requested.get(lift, "")
             if (
                 current_request
@@ -154,6 +170,7 @@ class LiftSessionManager:
                     lift, server_session_id, current_request,
                 )
                 self._requested.pop(lift, None)
+                self._requested_at.pop(lift, None)
             elif current_request and not server_session_id:
                 # Server view is free; our request didn't win or expired.
                 log.info(
@@ -162,6 +179,7 @@ class LiftSessionManager:
                     lift, current_request,
                 )
                 self._requested.pop(lift, None)
+                self._requested_at.pop(lift, None)
 
     def current_holder(self, lift: str) -> Optional[str]:
         """Read the most authoritative holder of the lift.
@@ -171,6 +189,7 @@ class LiftSessionManager:
         have no record at all, returns None.
         """
         with self._lock:
+            self._evict_stale_locked(lift)
             if lift in self._server:
                 holder = self._server[lift]
                 return holder if holder else None
@@ -178,3 +197,23 @@ class LiftSessionManager:
                 holder = self._requested[lift]
                 return holder if holder else None
             return None
+
+    def _evict_stale_locked(self, lift: str) -> None:
+        """If our `_requested[lift]` entry is older than `ttl_seconds`,
+        drop it. Caller must hold `self._lock`. No-op if `ttl_seconds <= 0`
+        (eviction disabled).
+        """
+        if self._ttl_seconds <= 0:
+            return
+        requested_at = self._requested_at.get(lift)
+        if requested_at is None:
+            return
+        if time.time() - requested_at > self._ttl_seconds:
+            stale = self._requested.pop(lift, None)
+            self._requested_at.pop(lift, None)
+            if stale:
+                log.info(
+                    "session-manager TTL evicted stale request: lift=%s session_id=%r "
+                    "(age > %.1fs)",
+                    lift, stale, self._ttl_seconds,
+                )

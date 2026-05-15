@@ -42,16 +42,17 @@ class DoorStatePump:
         self._task: Optional[asyncio.Task] = None
         self._stop_requested = False
         self._frames_seen = 0
-        self._frames_dispatched = 0
+        self._dispatches_ok = 0
 
     def frames_seen(self) -> int:
         """Total DoorState frames received (testing helper)."""
         return self._frames_seen
 
-    def frames_dispatched(self) -> int:
-        """Total frames that the callback handled without raising
-        (testing helper)."""
-        return self._frames_dispatched
+    def dispatches_ok(self) -> int:
+        """Total successful callback invocations (testing helper).
+        For door pumps, 1:1 with frames seen (one frame → one
+        callback). Named consistently with the fleet + lift pumps."""
+        return self._dispatches_ok
 
     async def start(self) -> None:
         """Spawn the pump task. Returns immediately."""
@@ -70,8 +71,11 @@ class DoorStatePump:
             self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
+                # Expected — we just cancelled it. Swallow on stop().
                 pass
+            except Exception as e:  # noqa: BLE001
+                log.warning("DoorStatePump task exited with %s: %s", type(e).__name__, e)
             self._task = None
         log.info("DoorStatePump stopped for door=%s", self._door)
 
@@ -93,6 +97,6 @@ class DoorStatePump:
         self._frames_seen += 1
         try:
             await self._on_state(self._door, frame)
-            self._frames_dispatched += 1
+            self._dispatches_ok += 1
         except Exception as e:  # noqa: BLE001
             log.warning("on_state callback failed for door=%s: %s", self._door, e)

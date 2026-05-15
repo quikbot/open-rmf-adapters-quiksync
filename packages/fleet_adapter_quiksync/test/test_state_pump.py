@@ -64,7 +64,7 @@ async def test_dispatches_each_robot_in_each_frame():
     await pump.stop()
 
     assert pump.frames_seen() == 2
-    assert pump.robots_dispatched() == 3
+    assert pump.dispatches_ok() == 3
     names = [name for name, _ in received]
     assert names == ["robot-1", "robot-2", "robot-1"]
     assert received[2][1]["battery_percent"] == 42.0
@@ -85,8 +85,8 @@ async def test_callback_exception_is_logged_not_raised(caplog):
 
     # All 3 robots attempted (no early exit on first failure)
     assert pump.frames_seen() == 1
-    # robots_dispatched only counts SUCCESSFUL dispatches; all 3 raised.
-    assert pump.robots_dispatched() == 0
+    # dispatches_ok only counts SUCCESSFUL dispatches; all 3 raised.
+    assert pump.dispatches_ok() == 0
 
 
 @pytest.mark.asyncio
@@ -107,7 +107,7 @@ async def test_frame_with_non_list_robots_skipped(caplog):
 
     # Both frames were SEEN; only one had dispatchable content.
     assert pump.frames_seen() == 2
-    assert pump.robots_dispatched() == 1
+    assert pump.dispatches_ok() == 1
     assert len(received) == 1
     assert received[0][0] == "r1"
 
@@ -138,7 +138,7 @@ async def test_dispatches_robots_when_field_is_map():
     await pump.stop()
 
     assert pump.frames_seen() == 1
-    assert pump.robots_dispatched() == 2
+    assert pump.dispatches_ok() == 2
     names = sorted(name for name, _ in received)
     assert names == ["robot-1", "robot-2"]
     by_name = {name: state for name, state in received}
@@ -165,7 +165,7 @@ async def test_dispatches_robots_when_field_missing_or_null():
     await pump.stop()
 
     assert pump.frames_seen() == 2
-    assert pump.robots_dispatched() == 0
+    assert pump.dispatches_ok() == 0
     assert received == []
 
 
@@ -184,7 +184,7 @@ async def test_robot_without_name_skipped():
     await asyncio.sleep(0.05)
     await pump.stop()
 
-    assert pump.robots_dispatched() == 1
+    assert pump.dispatches_ok() == 1
     assert received[0][0] == "r1"
 
 

@@ -72,7 +72,18 @@ def build_vehicle_traits(rmf_adapter: Any, traits: dict[str, Any]) -> Any:
 
     Names may vary across rmf_adapter versions; the structural shape is
     stable. Test exercises this via sys.modules injection.
+
+    Raises `BindingError` if the traits dict is missing a required field —
+    aligned with the rest of the binding (`build_graph`, `build_fleet_configuration`).
     """
+    required = (
+        "linear_velocity_m_s", "linear_acceleration_m_s2",
+        "angular_velocity_rad_s", "angular_acceleration_rad_s2",
+        "footprint_radius_m", "vicinity_radius_m",
+    )
+    missing = [k for k in required if k not in traits]
+    if missing:
+        raise BindingError(f"traits dict is missing required fields: {missing}")
     Limits = rmf_adapter.VehicleTraits.Limits
     Profile = rmf_adapter.VehicleTraits.Profile
     Circle = rmf_adapter.Geometry.Circle
@@ -106,6 +117,13 @@ def build_battery_system(rmf_adapter: Any, battery: dict[str, Any]) -> Any:
     }
     ```
 
+    Note: `recharge_threshold` and `recharge_soc` are present on the
+    wire (validated by `quiksync_client.types.BatterySystem` to catch
+    server-side drift) but not consumed here — they belong on
+    `FleetConfiguration` / `RobotConfiguration` in rmf_adapter, not
+    `BatterySystem.make`. A future enhancement may thread them through
+    once Open-RMF's recharge-policy plumbing is wired in this adapter.
+
     Returns the BatterySystem-or-None per rmf_adapter convention; we
     raise on invalid input rather than silently degrade because a fleet
     without battery model is uninteresting to Open-RMF's task planner.
@@ -118,23 +136,22 @@ def build_battery_system(rmf_adapter: Any, battery: dict[str, Any]) -> Any:
 
 
 def build_consider_request_dict(
-    rmf_adapter: Any, categories: list[str],
+    _rmf_adapter: Any, categories: list[str],
 ) -> dict[str, Callable[[Any, Any], None]]:
     """Build the `task_categories` / `action_categories` dict for FleetConfiguration.
 
     Each category maps to a `ConsiderRequest` callable that decides
-    whether the fleet bids on the request. For v1, always-accept:
+    whether the fleet bids on the request. Default: always-accept:
 
         def consider(description, confirm): confirm.accept()
 
     Real bidding logic (capacity-aware, current-load-aware) would
-    consult RobotHandle state — out of scope for v1. `rmf_adapter` is
-    unused in the body — the parameter is kept for symmetry with the
-    sibling builders so callers can drive all of them through a single
-    `rmf_adapter` reference.
+    consult RobotHandle state — out of scope for the current revision.
+    The `_rmf_adapter` parameter is unused in the body but kept for
+    symmetry with the sibling builders so callers can drive all of
+    them through a single `rmf_adapter` reference. Underscore prefix
+    is the Python convention for "intentionally unused".
     """
-    del rmf_adapter  # not currently needed; kept for API symmetry
-
     def always_consider(_description: Any, confirm: Any) -> None:
         confirm.accept()
 
@@ -175,9 +192,10 @@ def build_fleet_configuration(
 
     Pulls `traits`, `battery`, `task_categories`, `nav_graph_name`,
     `max_action_concurrency` from the fleet entry; pulls the named
-    graph from the building map. v1 leaves `action_categories` empty
-    (perform_action will 400 on dispatch — see callbacks.py); pilot
-    smoke fills in customer-specific categories once mapping is ready.
+    graph from the building map. `action_categories` defaults to empty
+    here (any `perform_action` would 400 on dispatch — see
+    callbacks.py); customer-specific categories are filled in by the
+    deployment before enabling `perform_action` dispatch.
     """
     fleet_name = fleet_entry["fleet_name"]
     traits = build_vehicle_traits(rmf_adapter, fleet_entry["traits"])
@@ -186,8 +204,8 @@ def build_fleet_configuration(
     task_categories = build_consider_request_dict(
         rmf_adapter, fleet_entry.get("task_categories") or [],
     )
-    # action_categories empty in v1; customer-specific categories get
-    # added before enabling perform_action dispatch in production.
+    # Customer-specific `action_categories` are added by the deployment
+    # before enabling `perform_action` dispatch.
     action_categories: dict[str, Any] = {}
 
     return rmf_adapter.easy_full_control.FleetConfiguration(
@@ -379,10 +397,11 @@ def bind_easy_full_control(
 def _robot_configuration(rmf_adapter: Any, robot: dict[str, Any]) -> Any:
     """Build the per-robot RobotConfiguration.
 
-    rmf_adapter's `easy_full_control.RobotConfiguration` carries optional
-    per-robot data (charger waypoint, recharge battery threshold). v1
-    constructs an empty default; pilot fills in per-robot configs via
-    a follow-up enhancement if customers need them.
+    rmf_adapter's `easy_full_control.RobotConfiguration` carries
+    optional per-robot data (charger waypoint, recharge battery
+    threshold). The current build constructs an empty default; a
+    future enhancement can thread per-robot config in if a customer
+    needs it.
     """
     return rmf_adapter.easy_full_control.RobotConfiguration([])
 

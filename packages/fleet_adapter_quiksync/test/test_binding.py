@@ -268,9 +268,12 @@ def test_build_vehicle_traits_passes_velocity_acceleration_footprint():
 
 
 def test_build_vehicle_traits_raises_on_missing_field():
+    """Aligned with sibling builders — `BindingError`, not bare `KeyError`."""
+    from fleet_adapter_quiksync.binding import BindingError
+
     rmf = make_fake_rmf_adapter()
     incomplete = {k: v for k, v in TRAITS.items() if k != "footprint_radius_m"}
-    with pytest.raises(KeyError):
+    with pytest.raises(BindingError, match="footprint_radius_m"):
         build_vehicle_traits(rmf, incomplete)
 
 

@@ -43,16 +43,19 @@ class FleetStatePump:
         self._task: Optional[asyncio.Task] = None
         self._stop_requested = False
         self._frames_seen = 0
-        self._robots_dispatched = 0
+        self._dispatches_ok = 0
 
     def frames_seen(self) -> int:
         """Total FleetState frames received (testing helper)."""
         return self._frames_seen
 
-    def robots_dispatched(self) -> int:
-        """Total per-robot dispatches (testing helper). One frame with
-        N robots → N dispatches."""
-        return self._robots_dispatched
+    def dispatches_ok(self) -> int:
+        """Total successful per-robot callback invocations (testing
+        helper). One FleetState frame containing N robots can produce
+        N dispatches. Same name across fleet / door / lift pumps for
+        ops/test consistency, even though the per-frame multiplicity
+        differs (door + lift are always 1:1)."""
+        return self._dispatches_ok
 
     async def start(self) -> None:
         """Spawn the pump task. Returns immediately."""
@@ -71,8 +74,11 @@ class FleetStatePump:
             self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
+                # Expected — we just cancelled it. Swallow on stop().
                 pass
+            except Exception as e:  # noqa: BLE001
+                log.warning("FleetStatePump task exited with %s: %s", type(e).__name__, e)
             self._task = None
         log.info("FleetStatePump stopped for fleet=%s", self._fleet)
 
@@ -117,6 +123,6 @@ class FleetStatePump:
                 continue
             try:
                 await self._on_robot_state(name, robot)
-                self._robots_dispatched += 1
+                self._dispatches_ok += 1
             except Exception as e:  # noqa: BLE001
                 log.warning("on_robot_state callback failed for robot=%s: %s", name, e)

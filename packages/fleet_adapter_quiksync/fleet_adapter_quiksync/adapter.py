@@ -169,8 +169,8 @@ async def _run_dry(
         await pump.stop()
 
     log.info(
-        "dry-run complete: frames=%d robots_dispatched=%d. handles=%s",
-        pump.frames_seen(), pump.robots_dispatched(),
+        "dry-run complete: frames=%d dispatches_ok=%d. handles=%s",
+        pump.frames_seen(), pump.dispatches_ok(),
         {n: {"updates_dropped_no_handle": h.updates_dropped_no_handle()} for n, h in handles.items()},
     )
     return 0 if pump.frames_seen() > 0 else 2
@@ -245,7 +245,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             auth.close()
             http.close()
             return exit_code
-        assert fleet_entry is not None  # _fetch_fleet_entry contract
+        # _fetch_fleet_entry's contract: exactly one of (fleet_entry, exit_code)
+        # is non-None on return. Explicit raise (not `assert`) so the invariant
+        # survives `python -O`.
+        if fleet_entry is None:
+            raise RuntimeError("_fetch_fleet_entry returned (None, None) — internal contract violation")
         handles = build_robot_handles(fleet_entry)
         log.info(
             "registered %d robots locally (%s): %s",
@@ -473,11 +477,12 @@ class _StatePumpRunner:
             log.exception("state pump crashed: %s", e)
         finally:
             try:
-                if self._pump is not None:
+                if self._pump is not None and not loop.is_closed():
                     loop.run_until_complete(self._pump.stop())
             except Exception as e:  # noqa: BLE001
                 log.warning("state pump stop failed: %s", e)
-            loop.close()
+            if not loop.is_closed():
+                loop.close()
 
     def request_stop(self) -> None:
         """Sync entry to ask the pump's loop to exit cleanly."""

@@ -1,8 +1,4 @@
-"""Smoke test: package imports without error.
-
-Pinned at v1 scaffold so  has at least one passing test per
-package. Per-package real tests land alongside the implementation.
-"""
+"""Smoke test: package imports cleanly and exposes a non-empty `__version__`."""
 
 def test_import():
     import door_adapter_quiksync

@@ -53,7 +53,7 @@ async def test_dispatches_each_frame():
     await pump.stop()
 
     assert pump.frames_seen() == 2
-    assert pump.frames_dispatched() == 2
+    assert pump.dispatches_ok() == 2
     assert [d for d, _ in received] == ["door_alpha", "door_alpha"]
     assert received[0][1]["current_mode"]["value"] == 0
     assert received[1][1]["current_mode"]["value"] == 2
@@ -83,7 +83,7 @@ async def test_callback_exception_is_logged_not_raised():
 
     # All 3 frames were SEEN; callback raised on each so none counted dispatched.
     assert pump.frames_seen() == 3
-    assert pump.frames_dispatched() == 0
+    assert pump.dispatches_ok() == 0
     assert call_count == 3
 
 
@@ -129,7 +129,7 @@ async def test_no_frames_is_clean_lifecycle():
     await asyncio.sleep(0.05)
     await pump.stop()
     assert pump.frames_seen() == 0
-    assert pump.frames_dispatched() == 0
+    assert pump.dispatches_ok() == 0
 
 
 @pytest.mark.asyncio
@@ -154,5 +154,5 @@ async def test_partial_callback_failure_keeps_counter_consistent():
     await pump.stop()
 
     assert pump.frames_seen() == 3
-    assert pump.frames_dispatched() == 2
+    assert pump.dispatches_ok() == 2
     assert success_calls == 2
