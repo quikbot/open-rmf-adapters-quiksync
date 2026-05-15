@@ -242,13 +242,15 @@ def test_to_rmf_robot_state_returns_none_when_rmf_adapter_missing():
 def test_translator_returns_none_on_malformed_state(monkeypatch):
     """Even with rmf_adapter present, malformed state → None.
 
-    Simulate rmf_adapter being available by stubbing the import.
+    Simulate rmf_adapter being available by stubbing the
+    `rmf_adapter.easy_full_control` submodule. numpy is a real
+    dependency in this environment and is used directly.
     """
     import sys
     import types
 
     fake_mod = types.ModuleType("rmf_adapter")
-    fake_type_mod = types.ModuleType("rmf_adapter.type")
+    fake_efc_mod = types.ModuleType("rmf_adapter.easy_full_control")
 
     class FakeRobotState:
         def __init__(self, level: str, pos: Any, soc: float) -> None:
@@ -256,15 +258,11 @@ def test_translator_returns_none_on_malformed_state(monkeypatch):
             self.pos = pos
             self.soc = soc
 
-    class FakeVector3d:
-        def __init__(self, x: float, y: float, yaw: float) -> None:
-            self.x, self.y, self.yaw = x, y, yaw
-
-    fake_mod.RobotState = FakeRobotState
-    fake_type_mod.Vector3d = FakeVector3d
+    fake_efc_mod.RobotState = FakeRobotState
+    fake_mod.easy_full_control = fake_efc_mod
 
     monkeypatch.setitem(sys.modules, "rmf_adapter", fake_mod)
-    monkeypatch.setitem(sys.modules, "rmf_adapter.type", fake_type_mod)
+    monkeypatch.setitem(sys.modules, "rmf_adapter.easy_full_control", fake_efc_mod)
 
     h = RobotHandle("r1")
 
@@ -282,9 +280,10 @@ def test_translator_returns_none_on_malformed_state(monkeypatch):
     state = sample_state()
     state["location"]["x"] = "x"
     assert h._to_rmf_robot_state(state) is None
-    # Valid state
+    # Valid state — pose is a 3-element numpy array.
     valid_state = sample_state()
     valid = h._to_rmf_robot_state(valid_state)
     assert valid is not None
     assert valid.level == "L1"
     assert valid.soc == 0.875  # 87.5 / 100
+    assert list(valid.pos) == [12.3, 4.5, 1.57]

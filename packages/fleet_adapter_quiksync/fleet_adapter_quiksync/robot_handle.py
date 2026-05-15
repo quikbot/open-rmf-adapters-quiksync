@@ -224,19 +224,23 @@ class RobotHandle:
             log.info("robot=%s registered with Open-RMF (lazy)", self.robot_name)
 
     def _to_rmf_robot_state(self, state: dict[str, Any]) -> Any:
-        """Translate our JSON wire shape to rmf_adapter.RobotState.
+        """Translate our JSON wire shape to
+        rmf_adapter.easy_full_control.RobotState.
 
-        Imported lazily because rmf_adapter isn't available on
+        The rmf_adapter Python binding exposes RobotState under
+        `easy_full_control` (not as a top-level attribute) and accepts
+        the pose as a 3-element numpy array (not a `Vector3d` object).
+        Both imports are lazy because rmf_adapter isn't available on
         ros:jazzy-ros-base (CI) — only on deployments with rmf_ros2.
         Tests that don't bind never reach this path.
         """
         try:
-            from rmf_adapter import RobotState  # type: ignore[import-untyped]
-            from rmf_adapter.type import Vector3d  # type: ignore[import-untyped]
+            from rmf_adapter.easy_full_control import RobotState  # type: ignore[import-untyped]
+            import numpy as np
         except ImportError:
             log.error(
-                "rmf_adapter not importable — cannot translate state for robot=%s. "
-                "Adapter binary requires the rmf_ros2 stack at runtime.",
+                "rmf_adapter or numpy not importable — cannot translate state for "
+                "robot=%s. Adapter binary requires the rmf_ros2 stack at runtime.",
                 self.robot_name,
             )
             return None
@@ -257,4 +261,4 @@ class RobotHandle:
             return None
         battery_soc = float(battery_percent) / 100.0  # rmf_adapter uses SOC fraction [0,1]
 
-        return RobotState(level_name, Vector3d(x, y, yaw), battery_soc)
+        return RobotState(level_name, np.array([x, y, yaw]), battery_soc)
