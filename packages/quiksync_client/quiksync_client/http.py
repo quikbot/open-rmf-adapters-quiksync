@@ -36,13 +36,29 @@ class HttpConfig:
     backoff_max_seconds: float = 8.0
 
 
+_ERROR_BODY_LOG_LIMIT = 200
+"""Cap the body excerpt rendered in error `str()`/`repr()`.
+
+The body eventually surfaces in adapter log lines, which may be shipped
+to centralised log aggregators. If a future server-side error path
+echoes input back in the error body (e.g. a `perform_action`
+`description` that carries customer-supplied JSON), this cap bounds the
+passive PII / PHI leak surface."""
+
+
 class QuikSyncClientError(Exception):
     """Non-retried 4xx response — adapter surfaces to Open-RMF as `failed()`."""
 
     def __init__(self, status: int, error_code: Optional[str], body: dict[str, Any]) -> None:
-        super().__init__(f"HTTP {status} {error_code or '?'}: {body}")
+        body_repr = repr(body)
+        if len(body_repr) > _ERROR_BODY_LOG_LIMIT:
+            body_repr = body_repr[:_ERROR_BODY_LOG_LIMIT] + "...(truncated)"
+        super().__init__(f"HTTP {status} {error_code or '?'}: {body_repr}")
         self.status = status
         self.error_code = error_code
+        # Full body retained on the attribute — only the str(exception) form
+        # is truncated. Callers that want the full body for structured
+        # logging / diagnostic dumps can access `.body` directly.
         self.body = body
 
 

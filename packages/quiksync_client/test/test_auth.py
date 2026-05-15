@@ -132,6 +132,54 @@ def test_three_consecutive_failures_raise_authError(monkeypatch):
         client.close()
 
 
+def test_4xx_body_redacts_client_secret_in_AuthError(monkeypatch):
+    """If a hypothetical Auth0 error body ever echoes the configured
+    `client_secret`, the redact pass blanks it before it reaches the
+    raised AuthError (and the log line that mirrors that message)."""
+    config = make_config()
+    leaked_body = (
+        '{"error":"invalid_grant","error_description":'
+        '"the secret test-secret was rejected"}'
+    )
+
+    def fake_post(self, url, **kwargs):
+        return httpx.Response(status_code=400, text=leaked_body)
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    client = Auth0M2MClient(config)
+    try:
+        with pytest.raises(AuthError) as exc_info:
+            client.get_token()
+        msg = str(exc_info.value)
+        assert "test-secret" not in msg
+        assert "<redacted client_secret>" in msg
+    finally:
+        client.close()
+
+
+def test_4xx_body_without_secret_passes_through_verbatim(monkeypatch):
+    """The redact pass MUST NOT mangle bodies that don't contain the
+    secret — log lines stay useful for diagnosing wrong-audience /
+    wrong-client misconfig."""
+    config = make_config()
+    body = '{"error":"unauthorized_client","error_description":"Audience mismatch"}'
+
+    def fake_post(self, url, **kwargs):
+        return httpx.Response(status_code=401, text=body)
+
+    monkeypatch.setattr(httpx.Client, "post", fake_post)
+    client = Auth0M2MClient(config)
+    try:
+        with pytest.raises(AuthError) as exc_info:
+            client.get_token()
+        msg = str(exc_info.value)
+        assert "unauthorized_client" in msg
+        assert "Audience mismatch" in msg
+        assert "<redacted" not in msg
+    finally:
+        client.close()
+
+
 def test_missing_access_token_raises(monkeypatch):
     """200 response without `access_token` → AuthError."""
     config = make_config()
