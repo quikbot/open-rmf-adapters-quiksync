@@ -91,7 +91,8 @@ fleet_adapter_quiksync/
 ├── adapter.py        # entry point; wires the pieces below + ROS spin loop
 ├── binding.py        # rmf_adapter lazy-import boundary; constructs
 │                     # VehicleTraits / BatterySystem / Graph /
-│                     # FleetConfiguration; calls add_robot per robot
+│                     # FleetConfiguration; prepares each robot for
+│                     # lazy registration (see robot_handle.py)
 ├── callbacks.py      # factories for navigate / stop / action_executor
 ├── config.py         # YAML + env config loader (FleetAdapterConfig)
 ├── robot_handle.py   # per-robot state cache + Open-RMF-side push
@@ -107,9 +108,11 @@ fleet_adapter_quiksync/
   one WSS state frame arrived within 3 seconds, non-zero otherwise.
 - **Full (default when `rmf_adapter` is importable)** — initialises
   `rclpy`, fetches `/building_map`, constructs the `EasyFullControl`
-  fleet, registers each robot via `add_robot(...)` with its
+  fleet, prepares each robot for lazy registration with its
   `RobotCallbacks`, spawns the WSS state pump on a dedicated thread, and
-  blocks on `adapter.spin()` until SIGINT.
+  blocks on `adapter.spin()` until SIGINT. Each robot only enters
+  Open-RMF on its first valid on-graph state frame (when `add_robot` is
+  called with a real pose, not a placeholder).
 
 The runtime mode is chosen automatically: full when `rmf_adapter` is
 importable, dry-run otherwise. `--dry-run` forces dry-run regardless.

@@ -29,9 +29,9 @@ flowchart LR
 
   subgraph adapters ["open-rmf-adapters-quiksync"]
     direction TB
-    fleet["fleet_adapter_quiksync<br/>v0.1+"]
-    door["door_adapter_quiksync<br/>v0.2+"]
-    lift["lift_adapter_quiksync<br/>v0.2+"]
+    fleet["fleet_adapter_quiksync"]
+    door["door_adapter_quiksync"]
+    lift["lift_adapter_quiksync"]
     fleet -.shared core.-> client["quiksync_client"]
     door -.-> client
     lift -.-> client
@@ -92,18 +92,18 @@ stream is identical.
 
 ## Packages
 
-| Package | Status | Purpose |
-|---|---|---|
-| [`quiksync_client`](packages/quiksync_client) | shared core | Auth0 M2M `client_credentials` flow with token caching + preemptive refresh, `httpx`-based REST client with retries and jittered backoff, `websockets`-based state subscriber with 401 circuit-breaker. Used by all three adapter packages. |
-| [`fleet_adapter_quiksync`](packages/fleet_adapter_quiksync) | v0.1+ | Open-RMF `EasyFullControl` adapter — registers QuikSync-managed fleets with the customer's Open-RMF deployment; serves `RobotCallbacks(navigate, stop, action_executor)` against the QuikSync HTTP surface and pushes per-robot state from the WSS stream into `EasyRobotUpdateHandle`. |
-| [`door_adapter_quiksync`](packages/door_adapter_quiksync) | v0.2+ | `rmf_door_msgs` adapter for QuikSync-managed doors. One rclpy node owns N doors; subscribes to `door_requests`, publishes `door_states`. Per-door WSS state pump + REST request dispatch via `quiksync_client`. |
-| [`lift_adapter_quiksync`](packages/lift_adapter_quiksync) | v0.2+ | `rmf_lift_msgs` adapter for QuikSync-managed lifts. One rclpy node owns N lifts with a shared adapter-side `LiftSessionManager` (defense-in-depth over the server's session lock). Subscribes to `lift_requests`, publishes `lift_states`. |
+| Package | Purpose |
+|---|---|
+| [`quiksync_client`](packages/quiksync_client) | Shared core: Auth0 M2M `client_credentials` flow with token caching + preemptive refresh, `httpx`-based REST client with retries and jittered backoff, `websockets`-based state subscriber with 401 circuit-breaker. Used by all three adapter packages. |
+| [`fleet_adapter_quiksync`](packages/fleet_adapter_quiksync) | Open-RMF `EasyFullControl` adapter — registers QuikSync-managed fleets with the customer's Open-RMF deployment; serves `RobotCallbacks(navigate, stop, action_executor)` against the QuikSync HTTP surface and pushes per-robot state from the WSS stream into `EasyRobotUpdateHandle`. |
+| [`door_adapter_quiksync`](packages/door_adapter_quiksync) | `rmf_door_msgs` adapter for QuikSync-managed doors. One rclpy node owns N doors; subscribes to `door_requests`, publishes `door_states`. Per-door WSS state pump + REST request dispatch via `quiksync_client`. |
+| [`lift_adapter_quiksync`](packages/lift_adapter_quiksync) | `rmf_lift_msgs` adapter for QuikSync-managed lifts. One rclpy node owns N lifts with a shared adapter-side `LiftSessionManager` (defense-in-depth over the server's session lock). Subscribes to `lift_requests`, publishes `lift_states`. |
 
 The internal ament package names follow the Open-RMF community convention `<role>_adapter_<vendor>` so they list cleanly in [`open-rmf/awesome_adapters`](https://github.com/open-rmf/awesome_adapters). The repository name is plural because it holds three adapter packages.
 
 ## Pre-requisites
 
-- ROS 2 **Jazzy** (the v1 target distro)
+- ROS 2 **Jazzy** (the supported distro)
 - `rmf_internal_msgs >= 2.3` (for `MODE_ADAPTER_ERROR` reporting)
 - `rmf_ros2` source build or binary install with the Python bindings
   (`rmf_fleet_adapter_python`) available on the host running the adapter
@@ -112,10 +112,11 @@ The internal ament package names follow the Open-RMF community convention `<role
   - audience: `https://<your-quiksync-api-audience>/open-rmf`
   - scopes: `open-rmf:read open-rmf:invoke`
   - the corresponding Auth0 organisation ID for your tenant
-- At least one registered fleet (and optionally doors / lifts) visible to your
-  organisation via the QuikSync adapter API's `/discovery` endpoint
+- For each role you intend to run: at least one resource of that kind
+  (fleet / door / lift) registered for your organisation, visible via
+  the QuikSync adapter API's `/discovery` endpoint
 
-Additional distros (Iron, Humble) are not officially supported in v1. We add
+Additional distros (Iron, Humble) are not officially supported. We add
 distros per customer demand.
 
 ## Setup
@@ -195,6 +196,7 @@ quiksync:
 | `auth0_client_secret_file` | path | — | Path to a file containing the M2M client secret (Docker secret mount, k8s `Secret`, Vault projection, etc.). |
 | `auth0_organization` | string | yes | Auth0 organisation ID (`org_xxxxx`) for your tenant. |
 | `fleet_name` | string | yes | Fleet identifier to register. Must equal `rmf_fleet.name` (YAML mode) — enforced at config-load — and must match a fleet visible via `/discovery` (both modes). |
+| `namespace` | string | — | Multi-namespace orgs only. Scopes every REST + WSS call to one namespace via `?namespace=<value>`. Leave unset for single-namespace deployments. |
 | `update_interval_seconds` | float | — | `EasyRobotUpdateHandle.update()` cadence per robot. Default `0.5`. |
 | `state_subscribe_reconnect_seconds` | float | — | Base backoff after a WSS disconnect. Default `1.0` (jittered exponential ramp, capped at 30s). |
 
@@ -258,6 +260,29 @@ environment. ROS DDS prefers `network_mode: host`; the example sets it.
 
 ## Additional notes
 
+### Multi-namespace orgs
+
+If your QuikSync org hosts multiple namespaces side-by-side and an
+adapter process should manage only one of them, set `namespace:` under
+the `quiksync:` block in the role's YAML config (or
+`<ROLE>_ADAPTER_NAMESPACE` as an env var). The value is forwarded as
+`?namespace=<value>` on every REST + WSS call; the server filters
+discovery + state subscriptions to that namespace's resources.
+
+Leaving the field unset preserves the historical cross-namespace
+behaviour — fine for single-namespace deployments. The same field
+exists on all three adapter configs (fleet / door / lift).
+
+### Lazy fleet registration
+
+`fleet_adapter_quiksync` defers `EasyFullControl.add_robot` until the
+first WSS state frame whose pose lies on the nav graph. This means a
+robot only appears in Open-RMF once it has reported a position — if
+state frames take a few seconds to start flowing after launch, that's
+the expected gap. The adapter's `--dry-run` mode confirms the WSS
+plumbing without needing the rmf_ros2 stack; see the role's README and
+[`docs/smoke.md`](docs/smoke.md).
+
 ### Authentication
 
 The adapter implements the OAuth 2.0 `client_credentials` flow against the
@@ -274,7 +299,7 @@ constraint for compatibility). Token rotation while a WSS connection is open
 is not in-band — the adapter closes and re-handshakes when the cached token
 approaches expiry.
 
-### Named-place dispatch only (v1)
+### Named-place dispatch only
 
 The adapter requires Open-RMF dispatches to resolve to a named waypoint in the
 fleet's nav graph. Coordinate-only dispatches return `400 coord_navigate_not_supported`

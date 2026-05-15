@@ -177,14 +177,33 @@ robot name(s), dispatch command, observed behavior. Paste the adapter
 log tail covering one full task lifecycle. Attach to the release notes
 or an open issue against this repo.
 
+## Multi-namespace orgs
+
+If the QuikSync org hosts multiple Adastra-style namespaces and the
+adapter should manage only one of them, set `namespace:` in the
+adapter's YAML config (under the `quiksync:` block) or pass
+`FLEET_ADAPTER_NAMESPACE` as an env var. The value is forwarded as
+`?namespace=<value>` on every REST + WSS call so the server filters
+discovery + state-subscribe responses to that namespace's resources.
+
+Leaving it unset preserves the historical cross-namespace union — fine
+for single-namespace deployments.
+
+## Door + lift adapters
+
+This document covers the fleet adapter end-to-end. The door and lift
+adapters follow the same pattern (config → Auth0 → HTTPS + WSS) and
+have their own `--dry-run` mode; see
+[`packages/door_adapter_quiksync/README.md`](../packages/door_adapter_quiksync/README.md)
+and [`packages/lift_adapter_quiksync/README.md`](../packages/lift_adapter_quiksync/README.md)
+for the role-specific configuration and verification recipes.
+
 ## Known limitations
 
 - **No live-Open-RMF in CI.** Steps 2–4 require the `rmf_ros2` stack which
   isn't pip-installable. There's no automated smoke at the moment.
-- **No `localize` callback.** v1 omits the optional 4th `RobotCallbacks`
-  property. File an enhancement issue against this repo if a customer
-  needs `localize` (re-localising on map switch).
+- **No `localize` callback.** The adapter omits the optional 4th
+  `RobotCallbacks` property. File an enhancement issue against this
+  repo if a customer needs `localize` (re-localising on map switch).
 - **Named-place dispatch only.** Dispatches with no named waypoint
-  return 400; coordinate-only navigate is not supported in v1.
-- **Door + lift adapters stubbed.** v1 ships the fleet adapter only;
-  the door + lift packages are scaffolds. v2 implements them.
+  return 400; coordinate-only navigate is not yet supported.

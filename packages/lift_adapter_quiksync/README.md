@@ -46,12 +46,19 @@ quiksync:
   auth0_organization: <auth0-org-id>
   lifts:
     - lift_alpha
+  # multi-namespace orgs: scope this adapter to one namespace
+  # namespace: my-namespace
   # optional tuning + ROS topic remaps
   state_subscribe_reconnect_seconds: 1.0
   session_ttl_seconds: 3600.0     # mirrors server-side session-lock TTL
   lift_states_topic: lift_states
   lift_requests_topic: lift_requests
 ```
+
+When `namespace` is set, every REST + WSS call carries
+`?namespace=<value>`; the server scopes discovery + state subscriptions
+to that namespace's lifts. Leave it unset for single-namespace
+deployments.
 
 Full template: [`config/quiksync.yaml.example`](config/quiksync.yaml.example).
 

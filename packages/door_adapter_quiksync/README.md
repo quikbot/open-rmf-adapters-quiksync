@@ -34,11 +34,18 @@ quiksync:
   doors:
     - door_alpha
     - door_beta
+  # multi-namespace orgs: scope this adapter to one namespace
+  # namespace: my-namespace
   # optional tuning + ROS topic remaps
   state_subscribe_reconnect_seconds: 1.0
   door_states_topic: door_states
   door_requests_topic: door_requests
 ```
+
+When `namespace` is set, every REST + WSS call carries
+`?namespace=<value>`; the server scopes discovery + state subscriptions
+to that namespace's doors. Leave it unset for single-namespace
+deployments.
 
 Full template: [`config/quiksync.yaml.example`](config/quiksync.yaml.example).
 
