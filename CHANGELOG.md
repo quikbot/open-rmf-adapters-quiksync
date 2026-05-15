@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.1](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.2.0...v0.2.1) (2026-05-15)
+
+
+### Features
+
+* thread ?namespace= through HTTP + WSS for multi-namespace orgs ([#28](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/28)) ([5b60ef1](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/5b60ef1c89d309c4fb394257ecb8c42a9e566c03))
+
+
+### Bug Fixes
+
+* **fleet_adapter:** defer add_robot until first WSS state frame ([#25](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/25)) ([fe18cf6](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/fe18cf627e1f5c28d8eb5156af66c971d3b66364)), closes [#4](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/4)
+* **fleet_adapter:** use correct rmf_adapter RobotState import + numpy pose ([#27](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/27)) ([e05d7e1](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/e05d7e187db27b6e34e20d5e9b0430798a28c4dd))
+
 ## [0.2.0](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.1.2...v0.2.0) (2026-05-14)
 
 
