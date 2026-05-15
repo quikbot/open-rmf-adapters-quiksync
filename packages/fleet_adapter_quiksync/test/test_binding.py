@@ -9,9 +9,10 @@ smoke (per `docs/smoke.md`) catches any divergence in the actual
 What we verify here:
 - Builders pass through expected fields from /discovery + /building_map
   to the rmf_adapter constructors.
-- `bind_easy_full_control` calls `Adapter.make`, `add_easy_fleet`,
-  and `add_robot` once per robot in the fleet entry.
-- Each `RobotHandle` is bound to the returned `EasyRobotUpdateHandle`.
+- `bind_easy_full_control` calls `Adapter.make`, `add_easy_fleet`, and
+  `RobotHandle.prepare_registration` once per robot in the fleet entry.
+- `add_robot` is NOT called during bind — registration is deferred to
+  the first WSS state frame (see test_robot_handle.py).
 - Missing nav graph raises `BindingError`.
 - Robots in /discovery without a corresponding `RobotHandle` log a
   warning + skip rather than crash.
@@ -344,7 +345,7 @@ def test_build_fleet_configuration_packs_everything():
 # ----- bind_easy_full_control -----
 
 
-def test_bind_registers_all_robots_and_binds_handles():
+def test_bind_prepares_all_robots_without_calling_add_robot():
     rmf = make_fake_rmf_adapter()
     http = MagicMock()
     handles = {"robot-1": RobotHandle("robot-1"), "robot-2": RobotHandle("robot-2")}
@@ -363,12 +364,19 @@ def test_bind_registers_all_robots_and_binds_handles():
     assert len(adapter.added_fleet_configs) == 1
     assert adapter.added_fleet_configs[0].fleet_name == "service_robots"
 
-    # Both robots added
-    assert {r["name"] for r in fleet_handle.added_robots} == {"robot-1", "robot-2"}
+    # Both robots prepared but NOT bound — registration is deferred to
+    # the first WSS state frame.
+    assert handles["robot-1"].is_prepared()
+    assert handles["robot-2"].is_prepared()
+    assert handles["robot-1"].is_bound() is False
+    assert handles["robot-2"].is_bound() is False
 
-    # RobotHandle.bind() called for both robots — they're bound now
-    assert handles["robot-1"].is_bound()
-    assert handles["robot-2"].is_bound()
+    # add_robot has not been called during bind.
+    assert fleet_handle.added_robots == []
+
+    # Each handle stores the fleet_handle for its lazy registration.
+    assert handles["robot-1"]._fleet_handle is fleet_handle
+    assert handles["robot-2"]._fleet_handle is fleet_handle
 
 
 def test_bind_skips_robots_without_local_handle():
@@ -388,9 +396,9 @@ def test_bind_skips_robots_without_local_handle():
         http=http,
     )
 
-    # Only robot-1 added to the fleet
-    assert {r["name"] for r in fleet_handle.added_robots} == {"robot-1"}
-    assert handles["robot-1"].is_bound()
+    # Only robot-1 prepared for lazy registration.
+    assert handles["robot-1"].is_prepared()
+    assert fleet_handle.added_robots == []
 
 
 def test_bind_uses_custom_node_name():
@@ -412,7 +420,9 @@ def test_bind_uses_custom_node_name():
 def test_bind_callbacks_wired_to_http():
     """Each robot's RobotCallbacks must be a callable backed by our
     HTTP client + handle — verify the navigate callback fires a POST
-    with the right fleet/robot identity."""
+    with the right fleet/robot identity. Callbacks live on the
+    RobotHandle (stashed by prepare_registration) until lazy
+    registration consumes them."""
     from types import SimpleNamespace
 
     rmf = make_fake_rmf_adapter()
@@ -420,7 +430,7 @@ def test_bind_callbacks_wired_to_http():
     http.post_navigate.return_value = {"task_id": "t1"}
     handles = {"robot-1": RobotHandle("robot-1"), "robot-2": RobotHandle("robot-2")}
 
-    _, fleet_handle = bind_easy_full_control(
+    bind_easy_full_control(
         rmf_adapter=rmf,
         fleet_entry=FLEET_ENTRY,
         building_map=BUILDING_MAP,
@@ -428,8 +438,8 @@ def test_bind_callbacks_wired_to_http():
         http=http,
     )
 
-    # Find robot-1's callbacks
-    robot1_callbacks = next(r["callbacks"] for r in fleet_handle.added_robots if r["name"] == "robot-1")
+    # Pull robot-1's callbacks from the handle's prepared state.
+    robot1_callbacks = handles["robot-1"]._callbacks
     destination = SimpleNamespace(
         map="L1",
         position=SimpleNamespace(x=1.0, y=2.0, yaw=0.5),
@@ -481,7 +491,7 @@ def _stub_yaml_fleet_config(robots: list[str]) -> _FakeFleetConfiguration:
     )
 
 
-def test_bind_from_yaml_calls_from_config_files_and_registers_robots(monkeypatch, tmp_path):
+def test_bind_from_yaml_calls_from_config_files_and_prepares_robots(monkeypatch, tmp_path):
     rmf = make_fake_rmf_adapter()
     http = MagicMock()
     handles: dict[str, Any] = {}
@@ -507,13 +517,21 @@ def test_bind_from_yaml_calls_from_config_files_and_registers_robots(monkeypatch
     assert isinstance(adapter, _FakeAdapter)
     assert adapter.node_name == "fleet_adapter_quiksync"
     assert len(adapter.added_fleet_configs) == 1
-    # Both robots from `known_robots` were added
-    added_names = {r["name"] for r in fleet_handle.added_robots}
-    assert added_names == {"robot-1", "robot-2"}
-    # Handles dict was populated lazily — robot_handles are now bound
+
+    # Handles dict was populated lazily — both prepared, not yet bound.
     assert set(handles.keys()) == {"robot-1", "robot-2"}
-    assert handles["robot-1"].is_bound()
-    assert handles["robot-2"].is_bound()
+    assert handles["robot-1"].is_prepared()
+    assert handles["robot-2"].is_prepared()
+    assert handles["robot-1"].is_bound() is False
+    assert handles["robot-2"].is_bound() is False
+
+    # add_robot is NOT called during bind (deferred to first WSS frame).
+    assert fleet_handle.added_robots == []
+
+    # The per-robot configuration stashed for lazy registration came from
+    # fleet_config.get_known_robot_configuration(name).
+    assert handles["robot-1"]._robot_config.accepts == ["robot-1"]
+    assert handles["robot-2"]._robot_config.accepts == ["robot-2"]
 
 
 def test_bind_from_yaml_propagates_server_uri(monkeypatch, tmp_path):

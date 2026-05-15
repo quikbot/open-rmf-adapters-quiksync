@@ -232,11 +232,14 @@ def bind_from_yaml(
 
     Robots are enumerated from `fleet_config.known_robots` (populated
     by from_config_files from the YAML's `rmf_fleet.robots` map). For
-    each, we register an initial-placeholder RobotState, build the
-    callbacks via `quiksync_client`, call `add_robot`, and bind the
-    returned EasyRobotUpdateHandle to a `RobotHandle` (lazy-created
-    if absent from the caller's `handles` dict). The placeholder pose
-    is overwritten by the first WSS frame that arrives (~1 s).
+    each, we build the callbacks via `quiksync_client` and call
+    `RobotHandle.prepare_registration(...)` so the handle can call
+    `add_robot` on the first valid WSS frame. `RobotHandle` is
+    lazy-created if absent from the caller's `handles` dict.
+
+    Lazy registration: `add_robot` is NOT called here — it requires an
+    on-graph initial pose that no fabricated placeholder can satisfy.
+    See `RobotHandle.on_state` for the deferred-registration path.
     """
     if not config_path:
         raise BindingError("YAML mode requires a config file path (--config)")
@@ -271,7 +274,7 @@ def bind_from_yaml(
     known_robots = list(getattr(fleet_config, "known_robots", []) or [])
     log.info("known robots from YAML: %s", known_robots)
 
-    bound_count = 0
+    prepared_count = 0
     for robot_name in known_robots:
         # Lazy-create a RobotHandle if the caller didn't pre-populate one
         # (env-driven invocations don't know the robot list ahead of time).
@@ -281,47 +284,14 @@ def bind_from_yaml(
             handles[robot_name] = handle
 
         robot_config = fleet_config.get_known_robot_configuration(robot_name)
-        initial_state = _initial_robot_state_from_yaml(rmf_adapter, robot_name, robot_config)
         callbacks = _build_robot_callbacks(rmf_adapter, http, fleet_name, robot_name, handle)
 
-        log.info("adding robot=%r to fleet (YAML mode)", robot_name)
-        update_handle = fleet_handle.add_robot(
-            robot_name,
-            initial_state,
-            robot_config,
-            callbacks,
-        )
-        handle.bind(update_handle)
-        bound_count += 1
+        log.info("preparing robot=%r for lazy registration (YAML mode)", robot_name)
+        handle.prepare_registration(fleet_handle, robot_config, callbacks)
+        prepared_count += 1
 
-    log.info("EasyFullControl bound (YAML mode): robots=%d", bound_count)
+    log.info("EasyFullControl bound (YAML mode): robots prepared=%d", prepared_count)
     return adapter, fleet_handle
-
-
-def _initial_robot_state_from_yaml(
-    rmf_adapter: Any,
-    robot_name: str,
-    robot_config: Any,
-) -> Any:
-    """Placeholder initial RobotState for YAML-mode add_robot.
-
-    Reads charger location from the per-robot config if exposed
-    (`robot_config.charger_waypoint` is the common shape); otherwise
-    falls back to an empty-map, zero-position placeholder. Either way,
-    the WSS state pump overwrites this on the first frame (~1 s).
-    """
-    level_name = ""
-    for attr in ("initial_map", "charger_map", "map"):
-        candidate = getattr(robot_config, attr, None)
-        if isinstance(candidate, str) and candidate:
-            level_name = candidate
-            break
-
-    return rmf_adapter.RobotState(
-        level_name,
-        rmf_adapter.type.Vector3d(0.0, 0.0, 0.0),
-        1.0,  # battery SOC placeholder; replaced on first WSS frame
-    )
 
 
 def bind_easy_full_control(
@@ -333,21 +303,20 @@ def bind_easy_full_control(
     node_name: str = "fleet_adapter_quiksync",
     server_uri: Optional[str] = None,
 ) -> tuple[Any, Any]:
-    """Bootstrap the Adapter + EasyFullControl fleet + register robots.
+    """Bootstrap the Adapter + EasyFullControl fleet + prepare robots
+    for lazy registration.
 
     Returns the (Adapter, FleetUpdateHandle) pair so the caller can
     spin the executor and shut down cleanly on signal.
 
     Per design §6.2:
     - One adapter per process (one fleet); no shared FleetConfiguration.
-    - `add_robot(name, initial_state, configuration, RobotCallbacks(...))`
-      is called once per robot listed in /discovery.
-    - Each robot's `EasyRobotUpdateHandle` is registered with its
-      `RobotHandle.bind()` so subsequent state-pump frames push into Open-RMF.
-
-    The initial `RobotState` comes from /discovery's `initial_map`. The
-    state pump will overwrite it within ~1 s once the first WSS frame
-    arrives.
+    - Each robot listed in /discovery gets a `RobotConfiguration` +
+      `RobotCallbacks(...)` and is wired up via
+      `RobotHandle.prepare_registration(fleet_handle, robot_config, callbacks)`.
+    - `add_robot` is invoked lazily by `RobotHandle.on_state` on the
+      first valid WSS frame, so the initial `RobotState` carries the
+      real on-graph pose from the server.
 
     `server_uri` (optional): if set, the FleetConfiguration's `server_uri`
     is populated so the adapter posts task/state updates to rmf-web's
@@ -375,7 +344,7 @@ def bind_easy_full_control(
     fleet_handle = adapter.add_easy_fleet(fleet_config)
 
     robots = fleet_entry.get("robots") or []
-    bound_count = 0
+    prepared_count = 0
     for robot in robots:
         name = robot.get("name")
         if not name:
@@ -388,40 +357,18 @@ def bind_easy_full_control(
             )
             continue
 
-        initial_state = _initial_robot_state(rmf_adapter, robot)
         robot_config = _robot_configuration(rmf_adapter, robot)
         callbacks = _build_robot_callbacks(rmf_adapter, http, fleet_name, name, handle)
 
-        log.info("adding robot=%r to fleet=%r", name, fleet_name)
-        update_handle = fleet_handle.add_robot(
-            name=name,
-            initial_state=initial_state,
-            configuration=robot_config,
-            callbacks=callbacks,
-        )
-        handle.bind(update_handle)
-        bound_count += 1
+        log.info("preparing robot=%r for lazy registration in fleet=%r", name, fleet_name)
+        handle.prepare_registration(fleet_handle, robot_config, callbacks)
+        prepared_count += 1
 
-    log.info("EasyFullControl bound: fleet=%r robots=%d", fleet_name, bound_count)
+    log.info("EasyFullControl bound: fleet=%r robots prepared=%d", fleet_name, prepared_count)
     return adapter, fleet_handle
 
 
 # ----- Private helpers -----
-
-
-def _initial_robot_state(rmf_adapter: Any, robot: dict[str, Any]) -> Any:
-    """Build an initial RobotState placeholder for `add_robot`.
-
-    Real state arrives via WSS within ~1 s. The placeholder uses (0,0,0)
-    at the initial_map; the state pump overwrites this on the first
-    frame.
-    """
-    initial_map = robot.get("initial_map") or ""
-    return rmf_adapter.RobotState(
-        initial_map,
-        rmf_adapter.type.Vector3d(0.0, 0.0, 0.0),
-        1.0,  # battery SOC fraction — overwritten on first state push
-    )
 
 
 def _robot_configuration(rmf_adapter: Any, robot: dict[str, Any]) -> Any:
