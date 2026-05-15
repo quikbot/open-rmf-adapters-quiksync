@@ -14,8 +14,8 @@ from quiksync_client.types import (
 )
 
 
-def test_discovery_response_parses_design_example():
-    """Mirrors the design §4.3.1 example body."""
+def test_discovery_response_parses_documented_example():
+    """Round-trips the documented `/discovery` response example."""
     payload = {
         "fleets": [
             {

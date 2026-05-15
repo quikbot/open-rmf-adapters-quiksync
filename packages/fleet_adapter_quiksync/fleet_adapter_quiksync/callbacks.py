@@ -11,8 +11,8 @@ into a QuikSync-managed robot:
 - `action_executor(category, description, execution)` — opaque
   passthrough to `POST .../robots/{robot}/perform_action` for tasks
   outside Open-RMF's built-in vocabulary (cleaning, charging extensions,
-  etc.). The server-side `perform_action_map.yaml` (§11.3) maps the
-  category to a server-side workflow.
+  etc.). Category resolution is the server's responsibility; the
+  adapter forwards opaquely.
 
 Each factory takes the HTTP client and identity parameters (fleet,
 robot name, robot handle, execution-id factory) and returns the
@@ -48,7 +48,7 @@ def _new_execution_id() -> str:
 
 def _extract_destination(destination: Any) -> Optional[dict[str, Any]]:
     """Translate the rmf_adapter Destination into the wire shape expected by
-    the QuikSync navigate endpoint (§4.3.5).
+    the QuikSync navigate endpoint.
 
     Defensive: returns None if the destination is unusable. EasyFullControl
     binds vary slightly across rmf_adapter versions — try the documented
@@ -223,9 +223,8 @@ def make_action_executor(
     """Build the `RobotCallbacks.action_executor` callable for one robot.
 
     Returns a function with the signature `action_executor(category, description, execution)`
-    that EasyFullControl invokes for `perform_action` task phases. The
-    category-to-workflow mapping lives server-side in
-    `perform_action_map.yaml` (§11.3); the adapter forwards opaquely.
+    that EasyFullControl invokes for `perform_action` task phases. Category
+    resolution is the server's responsibility; the adapter forwards opaquely.
 
     Unknown categories surface as 400 at the server; we log + return without
     raising so Open-RMF can decide whether to retry / fail the phase.

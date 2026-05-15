@@ -4,7 +4,7 @@ Wires the QuikSync HTTPS + WSS surface (`quiksync_client`) into
 Open-RMF's `EasyFullControl` so the customer's Open-RMF deployment can dispatch
 to QuikSync-managed robots as native peers.
 
-Architecture (per design §6.2):
+Wiring:
   config.yaml ──► FleetAdapterConfig
                   │
                   ▼

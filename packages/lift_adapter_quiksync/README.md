@@ -23,8 +23,8 @@ adapter — shared clients across lifts in one container.
 
 Lifts have an additional concern over doors: they're a shared resource
 that one fleet acquires for the duration of a transit. The QuikSync
-server owns the authoritative session lock via a Hazelcast IMap; this
-adapter layers a **`LiftSessionManager`** on top as defense-in-depth.
+server owns the authoritative session lock; this adapter layers a
+**`LiftSessionManager`** on top as defense-in-depth.
 
 It tracks per-lift the most recent `session_id` RMF asked for and the
 most recent `session_id` the server reports holds the lock, reconciling

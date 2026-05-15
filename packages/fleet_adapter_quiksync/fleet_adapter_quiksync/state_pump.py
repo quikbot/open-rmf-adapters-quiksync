@@ -1,9 +1,9 @@
 """Fleet state pump — drains the QuikSync `/state/subscribe` WSS stream
 and dispatches each frame to a per-robot consumer.
 
-Per design §11.1: each WSS frame is the full FleetState shape; the pump
-splits per-robot and forwards to a registered async callback. The
-callback is what the adapter wires to Open-RMF's `EasyRobotUpdateHandle.update`
+Each WSS frame carries the full FleetState shape; the pump splits
+per-robot and forwards to a registered async callback. The callback is
+what the adapter wires to Open-RMF's `EasyRobotUpdateHandle.update`
 (in adapter.py — not exercised in CI since rmf_adapter isn't in
 ros:jazzy-ros-base).
 

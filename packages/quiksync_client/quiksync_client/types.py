@@ -1,8 +1,9 @@
-"""Pydantic models for the the QuikSync adapter API HTTPS wire shape.
+"""Pydantic models for the QuikSync adapter API HTTPS wire shape.
 
-Mirrors design §4.3 — discovery, fleet state, navigate/dock/stop/perform_action
-response, door + lift state/request. Strict by default (`extra="forbid"`)
-on responses we control; permissive on rmf-web-shaped inputs we don't.
+Covers the documented adapter contract: discovery, fleet state,
+navigate / dock / stop / perform_action responses, door + lift state /
+request. Strict by default (`extra="forbid"`) on responses we control;
+permissive on rmf-web-shaped inputs we don't.
 
 Versions match the JSON wire — `unix_millis_*` timestamps stay as ints;
 adapter-side conversion to `builtin_interfaces/Time` happens at ROS publish.
@@ -119,8 +120,7 @@ class FleetState(BaseModel):
 # ----- Navigate / dock / stop / perform_action POST responses -----
 
 class FleetCommandAccepted(BaseModel):
-    """Success body for 202 from navigate/dock/stop/perform_action — when the
-    real engine-dispatch lands."""
+    """Success body for 202 from navigate / dock / stop / perform_action."""
 
     task_id: str
     execution_id: str

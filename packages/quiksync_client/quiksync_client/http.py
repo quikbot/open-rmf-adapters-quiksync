@@ -2,9 +2,9 @@
 
 Auth: Bearer token from `Auth0M2MClient` (auth.py). Retries: 3 with
 jittered exponential backoff on connection errors and 5xx. Idempotency:
-caller MUST supply a unique `execution_id` per logical operation —
-server-side dedup is keyed on it (per design §4.5), but our retry storm
-is what makes that work.
+caller MUST supply a unique `execution_id` per logical operation — the
+QuikSync server dedups by it on the receive side, which makes our retry
+storm safe.
 
 Error mapping: 4xx → `QuikSyncClientError(status, error_code, body)`;
 5xx after retries → `QuikSyncServerError(status, body)`; transport
@@ -338,8 +338,7 @@ def _ns_params(namespace: Optional[str]) -> Optional[dict[str, str]]:
     """Build the namespace query-param dict, or None when unset.
 
     Multi-namespace orgs scope the QuikSync server's lookup via
-    `?namespace=<adastra-namespace>`. Single-namespace orgs (most
-    deployments) leave the kwarg unset and the server resolves by
-    `org_id` alone.
+    `?namespace=<value>`. Single-namespace orgs (most deployments)
+    leave the kwarg unset and the server resolves by `org_id` alone.
     """
     return {"namespace": namespace} if namespace else None
