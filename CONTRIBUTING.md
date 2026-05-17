@@ -95,7 +95,23 @@ widget, the commit needs to be authored by the tool (e.g. `git commit
 `Generated-by:` remains the machine-readable disclosure record per the
 OSRF policy format regardless.
 
-Example:
+**Squash-merge gotcha when authoring as the tool:** this repo allows
+squash-merge only. By default, `gh pr merge --squash` rewrites the merge
+commit's author to the user invoking the merge — even when the source
+commit on the PR branch was authored by the tool. To preserve the
+intended author through the squash, pass `--author-email` explicitly:
+
+```bash
+gh pr merge <num> --admin --squash --delete-branch \
+  --author-email noreply@anthropic.com
+```
+
+Without the flag, the squash silently re-attributes the merge commit to
+the merger, and the tool fails to register on the Contributors widget
+despite the source branch being correctly authored.
+
+Example trailer line (used when the tool is a co-author, not the primary
+author):
 
 ```
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
