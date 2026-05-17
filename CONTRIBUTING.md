@@ -54,7 +54,10 @@ generative tool produced any portion of the changes. List the fully-qualified
 tool name including the provider and version / release information.
 
 The canonical commit shape stacks three trailers (see [§ Authorship](#authorship)
-for the role each one plays):
+for the role each one plays). Keep them as a **contiguous block** at the
+end of the message — no blank lines between trailers, so Git's trailer
+parser recognises the whole block as trailers and GitHub's de-duplicator
+doesn't strip `Co-Authored-By:` from the squash-merge commit body:
 
 ```
 feat(fleet_adapter_quiksync): add reconnect-on-token-expiry to the WSS pump
@@ -64,9 +67,7 @@ JWT TTL ± 10 min jitter so the gateway doesn't see a synchronised reconnect
 storm across multi-adapter customers every TTL cycle.
 
 Generated-by: Anthropic Claude Opus 4.7 (1M context)
-
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-
 Signed-off-by: Jane Doe <jane@example.org>
 ```
 
@@ -86,14 +87,17 @@ visibility).
 When a generative tool produced material portions of the work, also add a
 `Co-Authored-By:` trailer naming the tool, in addition to the
 `Generated-by:` disclosure trailer. The `Co-Authored-By:` trailer surfaces
-the assist on each commit's GitHub page (the "Co-authored by X" badge) and
-links the email to a GitHub account where one exists. Note: the repo's
-top-level **Contributors widget** counts primary commit authors, not
-co-authors via trailer — if the goal is to register the tool on that
-widget, the commit needs to be authored by the tool (e.g. `git commit
---author="Claude <noreply@anthropic.com>"`), not merely co-authored.
-`Generated-by:` remains the machine-readable disclosure record per the
-OSRF policy format regardless.
+the assist on each commit's GitHub page (the "Co-authored by X" badge) —
+that's its scope and only its scope. The repo's top-level **Contributors
+widget** counts primary commit authors only, and under this repo's
+squash-merge-only ruleset, the tool cannot be made the primary author
+of a commit on `main` via PR workflow: GitHub's squash-merge re-attributes
+the merge commit to the merging user, and `gh pr merge --author-email
+<other>` errors `Invalid email address` (the email must be verified on
+the calling user's own account, anti-impersonation by design). Treat
+`Co-Authored-By:` as commit-page audit-trail attribution, not Contributors-
+widget registration. `Generated-by:` remains the machine-readable OSRF
+disclosure record regardless.
 
 Example:
 
