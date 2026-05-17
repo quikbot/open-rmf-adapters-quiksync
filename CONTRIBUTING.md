@@ -86,8 +86,14 @@ visibility).
 When a generative tool produced material portions of the work, also add a
 `Co-Authored-By:` trailer naming the tool, in addition to the
 `Generated-by:` disclosure trailer. The `Co-Authored-By:` trailer surfaces
-the assist in GitHub's authorship UI; `Generated-by:` is the machine-
-readable disclosure record per the OSRF policy format.
+the assist on each commit's GitHub page (the "Co-authored by X" badge) and
+links the email to a GitHub account where one exists. Note: the repo's
+top-level **Contributors widget** counts primary commit authors, not
+co-authors via trailer — if the goal is to register the tool on that
+widget, the commit needs to be authored by the tool (e.g. `git commit
+--author="Claude <noreply@anthropic.com>"`), not merely co-authored.
+`Generated-by:` remains the machine-readable disclosure record per the
+OSRF policy format regardless.
 
 Example:
 
