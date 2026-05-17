@@ -53,7 +53,8 @@ Add a `Generated-by:` trailer to the commit message of every commit where a
 generative tool produced any portion of the changes. List the fully-qualified
 tool name including the provider and version / release information.
 
-Example:
+The canonical commit shape stacks three trailers (see [§ Authorship](#authorship)
+for the role each one plays):
 
 ```
 feat(fleet_adapter_quiksync): add reconnect-on-token-expiry to the WSS pump
@@ -63,6 +64,8 @@ JWT TTL ± 10 min jitter so the gateway doesn't see a synchronised reconnect
 storm across multi-adapter customers every TTL cycle.
 
 Generated-by: Anthropic Claude Opus 4.7 (1M context)
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 
 Signed-off-by: Jane Doe <jane@example.org>
 ```
