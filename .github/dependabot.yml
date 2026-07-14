@@ -1,0 +1,12 @@
+# Dependabot — keep SHA-pinned GitHub Actions current.
+#
+# The workflows pin every action to a full commit SHA (immutable) with a trailing
+# `# vN` version comment. Dependabot parses that comment, checks upstream for new
+# releases, and opens PRs that bump the SHA and the comment together — so the pins
+# don't silently freeze. Without this, pinning trades drift risk for staleness.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    cooldown: { default-days: 5 }
