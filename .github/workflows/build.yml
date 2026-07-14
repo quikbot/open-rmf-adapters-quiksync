@@ -63,7 +63,21 @@ jobs:
           # console_direct+ streams stdout/stderr as tests run so failures are
           # visible even when the overall return code is non-zero. The `|| true`
           # lets the test-result step below run and surface the JUnit XML.
-          colcon test --event-handlers console_direct+ --return-code-on-test-failure || RC=$?
+          #
+          # --pytest-args -p no:launch_testing -p no:launch_ros: the ros:jazzy
+          # image ships two coupled pytest11 entrypoint plugins that are
+          # incompatible with the pytest>=8 we pin above. launch_testing's
+          # pytest_pycollect_makemodule(path, parent) hookimpl still declares
+          # the `path` argument pytest dropped from the hookspec in 8.0, and
+          # disabling only launch_testing then exposes launch_ros, whose
+          # hookimpl targets the pytest_launch_collect_makemodule hookspec that
+          # launch_testing used to register. Either way pytest aborts at startup
+          # with PluginValidationError before collecting a single test. None of
+          # our tests use ROS launch testing, so disable both plugins. (colcon
+          # runs pytest itself and ignores PYTEST_ADDOPTS, so this must go
+          # through --pytest-args.)
+          colcon test --event-handlers console_direct+ --return-code-on-test-failure \
+            --pytest-args -p no:launch_testing -p no:launch_ros || RC=$?
           # Always print per-package test-result summaries (also exits non-zero
           # if the JUnit XMLs report failures — provides our final gate).
           colcon test-result --verbose --all
