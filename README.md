@@ -1,6 +1,11 @@
 # Open-RMF Adapters for QuikSync
 
-ROS 2 [Open-RMF](https://www.open-rmf.org/) adapters for the [QuikSync](https://quikbot.ai) platform — exposing QuikSync-managed robots, doors, and lifts to a customer's Open-RMF deployment as native peers.
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![ROS 2](https://img.shields.io/badge/ROS%202-Jazzy-22314E)](https://docs.ros.org/en/jazzy/)
+[![Open-RMF](https://img.shields.io/badge/Open--RMF-fleet%20%C2%B7%20door%20%C2%B7%20lift-1E7C4F)](https://www.open-rmf.org/)
+[![QuikSync](https://img.shields.io/badge/platform-QuikSync-28A165)](https://quiksync.app)
+
+ROS 2 [Open-RMF](https://www.open-rmf.org/) adapters for the [QuikSync](https://quiksync.app) platform — exposing QuikSync-managed robots, doors, and lifts to a customer's Open-RMF deployment as native peers.
 
 The adapters consume the **QuikSync Open-RMF Connector** — an HTTP + WSS
 surface served from the customer's QuikSync host — and surface the
@@ -340,6 +345,21 @@ See [`docs/smoke.md`](docs/smoke.md) for the dry-run + full-Open-RMF smoke
 procedure used to validate a release against a staging deployment. The doc
 includes failure tables for the four most common diagnostic paths.
 
+## About QuikSync
+
+These adapters are one integration surface of **QuikSync**, the Physical AI
+Operations Platform — one live operational world for people, agents, machines,
+and infrastructure, where software intent becomes physical action under
+accountable authority. Open-RMF deployments connect as first-class peers and
+keep running exactly as they are.
+
+| | |
+|---|---|
+| **Product** | [quiksync.app](https://quiksync.app) |
+| **Platform overview and architecture** | [`quikbot/quiksync`](https://github.com/quikbot/quiksync) |
+| **Company** | [QuikBot AI Research](https://quikbot.ai) |
+| **Contact** | [tech@quikbot.ai](mailto:tech@quikbot.ai) |
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). The project follows DCO sign-off,
@@ -354,9 +374,17 @@ integration questions), see the
 [Open-RMF support guidelines](https://openrmf.readthedocs.io/en/latest/support/index.html).
 
 For support specific to QuikSync — adapter behaviour, API contract questions,
-new fleet onboarding — contact [QuikSync](https://quikbot.ai) at
+new fleet onboarding — contact [QuikSync](https://quiksync.app) at
 [tech@quikbot.ai](mailto:tech@quikbot.ai).
 
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+
+**© QuikBot Technologies PTE LTD** · Apache-2.0 · [quiksync.app](https://quiksync.app)
+
+</div>
