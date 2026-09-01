@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.3](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.2.2...v0.2.3) (2026-08-30)
+
+
+* release 0.2.3 ([#51](https://github.com/quikbot/open-rmf-adapters-quiksync/issues/51)) ([c0f950e](https://github.com/quikbot/open-rmf-adapters-quiksync/commit/c0f950e6f808fc2c04dcb8db45ecf853f66b5960))
+
 ## [0.2.2](https://github.com/quikbot/open-rmf-adapters-quiksync/compare/v0.2.1...v0.2.2) (2026-05-15)
 
 
